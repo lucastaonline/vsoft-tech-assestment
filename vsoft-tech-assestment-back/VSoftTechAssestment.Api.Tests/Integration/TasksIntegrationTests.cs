@@ -2,11 +2,10 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
 using VSoftTechAssestment.Api.Data;
 using VSoftTechAssestment.Api.Models.DTOs.Auth;
 using VSoftTechAssestment.Api.Models.DTOs.Task;
@@ -21,13 +20,29 @@ public class TasksIntegrationTests : IClassFixture<WebApplicationFactory<Program
     private readonly HttpClient _client;
     private readonly ApplicationDbContext _context;
     private readonly UserManager<IdentityUser> _userManager;
+    private readonly string _databaseName;
     private string? _authToken;
     private string? _userId;
 
     public TasksIntegrationTests(WebApplicationFactory<Program> factory)
     {
+        // Use a shared database name so both test and API use the same in-memory database
+        _databaseName = "TestDb_" + Guid.NewGuid().ToString();
+
         _factory = factory.WithWebHostBuilder(builder =>
         {
+            builder.ConfigureAppConfiguration((context, config) =>
+            {
+                // Add JWT configuration for tests
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "Jwt:Secret", "YourSuperSecretKeyThatMustBeAtLeast32CharactersLong!" },
+                    { "Jwt:Issuer", "VSoftTechAssestment" },
+                    { "Jwt:Audience", "VSoftTechAssestment" },
+                    { "Jwt:ExpirationMinutes", "60" }
+                });
+            });
+
             builder.ConfigureServices(services =>
             {
                 // Remove the real DbContext
@@ -38,10 +53,10 @@ public class TasksIntegrationTests : IClassFixture<WebApplicationFactory<Program
                     services.Remove(descriptor);
                 }
 
-                // Add in-memory database
+                // Add in-memory database with shared name
                 services.AddDbContext<ApplicationDbContext>(options =>
                 {
-                    options.UseInMemoryDatabase("TestDb_" + Guid.NewGuid());
+                    options.UseInMemoryDatabase(_databaseName);
                 });
 
                 // Remove RabbitMQ service
@@ -59,6 +74,7 @@ public class TasksIntegrationTests : IClassFixture<WebApplicationFactory<Program
 
         _client = _factory.CreateClient();
 
+        // Create scope and get services that use the same in-memory database
         var scope = _factory.Services.CreateScope();
         _context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         _userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
@@ -139,30 +155,60 @@ public class TasksIntegrationTests : IClassFixture<WebApplicationFactory<Program
 
     private async System.Threading.Tasks.Task AuthenticateAsync()
     {
-        // Create a test user
-        var user = new IdentityUser
+        // Ensure database is created
+        await _context.Database.EnsureCreatedAsync();
+
+        // Register user via API endpoint (ensures it's in the same context)
+        var registerRequest = new RegisterRequest
         {
             UserName = "testuser",
             Email = "test@example.com",
-            EmailConfirmed = true
+            Password = "Password123!"
         };
 
-        var result = await _userManager.CreateAsync(user, "Password123!");
-        if (result.Succeeded)
+        var registerResponse = await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
+        
+        if (!registerResponse.IsSuccessStatusCode)
         {
-            _userId = user.Id;
-
-            // Login to get token
-            var loginRequest = new LoginRequest
-            {
-                UserNameOrEmail = "testuser",
-                Password = "Password123!"
-            };
-
-            var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", loginRequest);
-            var loginResult = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
-            _authToken = loginResult?.Token;
+            var errorContent = await registerResponse.Content.ReadAsStringAsync();
+            throw new Exception($"Registration failed with status {registerResponse.StatusCode}: {errorContent}");
         }
+
+        var registerResult = await registerResponse.Content.ReadFromJsonAsync<RegisterResponse>();
+        
+        if (registerResult == null || string.IsNullOrEmpty(registerResult.UserId))
+        {
+            throw new Exception("Failed to register test user");
+        }
+
+        _userId = registerResult.UserId;
+
+        // Small delay to ensure registration is fully persisted
+        await System.Threading.Tasks.Task.Delay(200);
+
+        // Login to get token
+        var loginRequest = new LoginRequest
+        {
+            UserNameOrEmail = "testuser",
+            Password = "Password123!"
+        };
+
+        var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", loginRequest);
+        
+        if (!loginResponse.IsSuccessStatusCode)
+        {
+            var errorContent = await loginResponse.Content.ReadAsStringAsync();
+            throw new Exception($"Login failed with status {loginResponse.StatusCode}: {errorContent}");
+        }
+
+        var loginResult = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        
+        if (loginResult == null || string.IsNullOrEmpty(loginResult.Token))
+        {
+            throw new Exception("Failed to get authentication token");
+        }
+
+        _authToken = loginResult.Token;
     }
 
     public void Dispose()

@@ -1,46 +1,21 @@
 using FluentAssertions;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
 using Moq;
 using VSoftTechAssestment.Api.Controllers;
 using VSoftTechAssestment.Api.Models.DTOs.Auth;
+using VSoftTechAssestment.Api.Services;
 
 namespace VSoftTechAssestment.Api.Tests.Controllers;
 
 public class AuthControllerTests
 {
-    private readonly Mock<UserManager<IdentityUser>> _userManagerMock;
-    private readonly Mock<SignInManager<IdentityUser>> _signInManagerMock;
-    private readonly Mock<IConfiguration> _configurationMock;
+    private readonly Mock<IAuthService> _authServiceMock;
     private readonly AuthController _controller;
 
     public AuthControllerTests()
     {
-        var store = new Mock<IUserStore<IdentityUser>>();
-        _userManagerMock = new Mock<UserManager<IdentityUser>>(
-            store.Object, null, null, null, null, null, null, null, null);
-
-        var contextAccessor = new Mock<Microsoft.AspNetCore.Http.IHttpContextAccessor>();
-        var claimsFactory = new Mock<IUserClaimsPrincipalFactory<IdentityUser>>();
-        _signInManagerMock = new Mock<SignInManager<IdentityUser>>(
-            _userManagerMock.Object,
-            contextAccessor.Object,
-            claimsFactory.Object,
-            null, null, null, null);
-
-        _configurationMock = new Mock<IConfiguration>();
-        var jwtSection = new Mock<IConfigurationSection>();
-        jwtSection.Setup(x => x["Secret"]).Returns("YourSuperSecretKeyThatMustBeAtLeast32CharactersLong!");
-        jwtSection.Setup(x => x["Issuer"]).Returns("TestIssuer");
-        jwtSection.Setup(x => x["Audience"]).Returns("TestAudience");
-        jwtSection.Setup(x => x.GetValue<int>("ExpirationMinutes", 60)).Returns(60);
-        _configurationMock.Setup(x => x.GetSection("Jwt")).Returns(jwtSection.Object);
-
-        _controller = new AuthController(
-            _userManagerMock.Object,
-            _signInManagerMock.Object,
-            _configurationMock.Object);
+        _authServiceMock = new Mock<IAuthService>();
+        _controller = new AuthController(_authServiceMock.Object);
     }
 
     [Fact]
@@ -54,12 +29,15 @@ public class AuthControllerTests
             Password = "Password123"
         };
 
-        _userManagerMock.Setup(x => x.FindByEmailAsync(request.Email))
-            .ReturnsAsync((IdentityUser?)null);
-        _userManagerMock.Setup(x => x.FindByNameAsync(request.UserName))
-            .ReturnsAsync((IdentityUser?)null);
-        _userManagerMock.Setup(x => x.CreateAsync(It.IsAny<IdentityUser>(), request.Password))
-            .ReturnsAsync(IdentityResult.Success);
+        var expectedResponse = new RegisterResponse
+        {
+            Success = true,
+            Message = "Usuário criado com sucesso",
+            UserId = "user-id"
+        };
+
+        _authServiceMock.Setup(x => x.RegisterAsync(request))
+            .ReturnsAsync(expectedResponse);
 
         // Act
         var result = await _controller.Register(request);
@@ -69,6 +47,7 @@ public class AuthControllerTests
         var response = okResult.Value.Should().BeOfType<RegisterResponse>().Subject;
         response.Success.Should().BeTrue();
         response.Message.Should().Contain("sucesso");
+        _authServiceMock.Verify(x => x.RegisterAsync(request), Times.Once);
     }
 
     [Fact]
@@ -82,9 +61,15 @@ public class AuthControllerTests
             Password = "Password123"
         };
 
-        var existingUser = new IdentityUser { Email = request.Email };
-        _userManagerMock.Setup(x => x.FindByEmailAsync(request.Email))
-            .ReturnsAsync(existingUser);
+        var expectedResponse = new RegisterResponse
+        {
+            Success = false,
+            Message = "Usuário com este email já existe",
+            Errors = new List<string> { "Email já está em uso" }
+        };
+
+        _authServiceMock.Setup(x => x.RegisterAsync(request))
+            .ReturnsAsync(expectedResponse);
 
         // Act
         var result = await _controller.Register(request);
@@ -94,6 +79,7 @@ public class AuthControllerTests
         var response = badRequestResult.Value.Should().BeOfType<RegisterResponse>().Subject;
         response.Success.Should().BeFalse();
         response.Message.Should().Contain("já existe");
+        _authServiceMock.Verify(x => x.RegisterAsync(request), Times.Once);
     }
 
     [Fact]
@@ -106,17 +92,19 @@ public class AuthControllerTests
             Password = "Password123"
         };
 
-        var user = new IdentityUser
+        var expectedResponse = new LoginResponse
         {
-            Id = "user-id",
+            Success = true,
+            Message = "Login realizado com sucesso",
+            Token = "fake-jwt-token",
+            UserId = "user-id",
             UserName = "testuser",
-            Email = "test@example.com"
+            Email = "test@example.com",
+            ExpiresAt = DateTime.UtcNow.AddMinutes(60)
         };
 
-        _userManagerMock.Setup(x => x.FindByNameAsync(request.UserNameOrEmail))
-            .ReturnsAsync(user);
-        _signInManagerMock.Setup(x => x.CheckPasswordSignInAsync(user, request.Password, false))
-            .ReturnsAsync(Microsoft.AspNetCore.Identity.SignInResult.Success);
+        _authServiceMock.Setup(x => x.LoginAsync(request))
+            .ReturnsAsync(expectedResponse);
 
         // Act
         var result = await _controller.Login(request);
@@ -126,7 +114,8 @@ public class AuthControllerTests
         var response = okResult.Value.Should().BeOfType<LoginResponse>().Subject;
         response.Success.Should().BeTrue();
         response.Token.Should().NotBeNullOrEmpty();
-        response.UserId.Should().Be(user.Id);
+        response.UserId.Should().Be("user-id");
+        _authServiceMock.Verify(x => x.LoginAsync(request), Times.Once);
     }
 
     [Fact]
@@ -139,10 +128,14 @@ public class AuthControllerTests
             Password = "WrongPassword"
         };
 
-        _userManagerMock.Setup(x => x.FindByNameAsync(request.UserNameOrEmail))
-            .ReturnsAsync((IdentityUser?)null);
-        _userManagerMock.Setup(x => x.FindByEmailAsync(request.UserNameOrEmail))
-            .ReturnsAsync((IdentityUser?)null);
+        var expectedResponse = new LoginResponse
+        {
+            Success = false,
+            Message = "Usuário ou senha inválidos"
+        };
+
+        _authServiceMock.Setup(x => x.LoginAsync(request))
+            .ReturnsAsync(expectedResponse);
 
         // Act
         var result = await _controller.Login(request);
@@ -152,6 +145,7 @@ public class AuthControllerTests
         var response = unauthorizedResult.Value.Should().BeOfType<LoginResponse>().Subject;
         response.Success.Should().BeFalse();
         response.Token.Should().BeNull();
+        _authServiceMock.Verify(x => x.LoginAsync(request), Times.Once);
     }
 }
 

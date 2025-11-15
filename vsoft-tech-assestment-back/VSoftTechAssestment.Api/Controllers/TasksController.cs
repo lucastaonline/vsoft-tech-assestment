@@ -1,13 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using VSoftTechAssestment.Api.Data;
 using VSoftTechAssestment.Api.Models.DTOs.Task;
-using VSoftTechAssestment.Api.Models.Entities;
 using VSoftTechAssestment.Api.Services;
-using TaskEntity = VSoftTechAssestment.Api.Models.Entities.Task;
 
 namespace VSoftTechAssestment.Api.Controllers;
 
@@ -16,18 +11,11 @@ namespace VSoftTechAssestment.Api.Controllers;
 [Authorize]
 public class TasksController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
-    private readonly UserManager<IdentityUser> _userManager;
-    private readonly IRabbitMQService _rabbitMQService;
+    private readonly ITaskService _taskService;
 
-    public TasksController(
-        ApplicationDbContext context, 
-        UserManager<IdentityUser> userManager,
-        IRabbitMQService rabbitMQService)
+    public TasksController(ITaskService taskService)
     {
-        _context = context;
-        _userManager = userManager;
-        _rabbitMQService = rabbitMQService;
+        _taskService = taskService;
     }
 
     /// <summary>
@@ -47,23 +35,7 @@ public class TasksController : ControllerBase
             return Unauthorized();
         }
 
-        var tasks = await _context.Tasks
-            .Where(t => t.UserId == userId)
-            .OrderByDescending(t => t.CreatedAt)
-            .Select(t => new TaskResponse
-            {
-                Id = t.Id,
-                Title = t.Title,
-                Description = t.Description,
-                DueDate = t.DueDate,
-                Status = t.Status,
-                UserId = t.UserId,
-                UserName = t.User != null ? t.User.UserName : null,
-                CreatedAt = t.CreatedAt,
-                UpdatedAt = t.UpdatedAt
-            })
-            .ToListAsync();
-
+        var tasks = await _taskService.GetUserTasksAsync(userId);
         return Ok(tasks);
     }
 
@@ -87,29 +59,14 @@ public class TasksController : ControllerBase
             return Unauthorized();
         }
 
-        var task = await _context.Tasks
-            .Include(t => t.User)
-            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-
+        var task = await _taskService.GetTaskByIdAsync(id, userId);
+        
         if (task == null)
         {
             return NotFound();
         }
 
-        var response = new TaskResponse
-        {
-            Id = task.Id,
-            Title = task.Title,
-            Description = task.Description,
-            DueDate = task.DueDate,
-            Status = task.Status,
-            UserId = task.UserId,
-            UserName = task.User?.UserName,
-            CreatedAt = task.CreatedAt,
-            UpdatedAt = task.UpdatedAt
-        };
-
-        return Ok(response);
+        return Ok(task);
     }
 
     /// <summary>
@@ -140,38 +97,8 @@ public class TasksController : ControllerBase
             return Unauthorized();
         }
 
-        var task = new TaskEntity
-        {
-            Id = Guid.NewGuid(),
-            Title = request.Title,
-            Description = request.Description,
-            DueDate = request.DueDate,
-            Status = request.Status,
-            UserId = userId,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        _context.Tasks.Add(task);
-        await _context.SaveChangesAsync();
-
-        // Send notification via RabbitMQ
-        _rabbitMQService.PublishTaskNotification(userId, task.Id.ToString(), task.Title);
-
-        var user = await _userManager.FindByIdAsync(userId);
-        var response = new TaskResponse
-        {
-            Id = task.Id,
-            Title = task.Title,
-            Description = task.Description,
-            DueDate = task.DueDate,
-            Status = task.Status,
-            UserId = task.UserId,
-            UserName = user?.UserName,
-            CreatedAt = task.CreatedAt,
-            UpdatedAt = task.UpdatedAt
-        };
-
-        return CreatedAtAction(nameof(GetTask), new { id = task.Id }, response);
+        var task = await _taskService.CreateTaskAsync(request, userId);
+        return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
     }
 
     /// <summary>
@@ -200,21 +127,12 @@ public class TasksController : ControllerBase
             return Unauthorized();
         }
 
-        var task = await _context.Tasks
-            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-
-        if (task == null)
+        var updated = await _taskService.UpdateTaskAsync(id, request, userId);
+        
+        if (!updated)
         {
             return NotFound();
         }
-
-        task.Title = request.Title;
-        task.Description = request.Description;
-        task.DueDate = request.DueDate;
-        task.Status = request.Status;
-        task.UpdatedAt = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync();
 
         return NoContent();
     }
@@ -239,16 +157,12 @@ public class TasksController : ControllerBase
             return Unauthorized();
         }
 
-        var task = await _context.Tasks
-            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-
-        if (task == null)
+        var deleted = await _taskService.DeleteTaskAsync(id, userId);
+        
+        if (!deleted)
         {
             return NotFound();
         }
-
-        _context.Tasks.Remove(task);
-        await _context.SaveChangesAsync();
 
         return NoContent();
     }

@@ -111,6 +111,11 @@ builder.Services.AddSwaggerGen(options =>
 // Configure RabbitMQ Service
 builder.Services.AddSingleton<IRabbitMQService, RabbitMQService>();
 
+// Configure Application Services
+builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
+
 // Configure CORS for frontend communication
 // Support both development and Docker environments
 var corsOrigins = new List<string>

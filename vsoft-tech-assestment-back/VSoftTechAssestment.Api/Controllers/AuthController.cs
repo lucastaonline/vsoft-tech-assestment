@@ -1,11 +1,7 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 using VSoftTechAssestment.Api.Models.DTOs.Auth;
+using VSoftTechAssestment.Api.Services;
 
 namespace VSoftTechAssestment.Api.Controllers;
 
@@ -14,18 +10,11 @@ namespace VSoftTechAssestment.Api.Controllers;
 [AllowAnonymous]
 public class AuthController : ControllerBase
 {
-    private readonly UserManager<IdentityUser> _userManager;
-    private readonly SignInManager<IdentityUser> _signInManager;
-    private readonly IConfiguration _configuration;
+    private readonly IAuthService _authService;
 
-    public AuthController(
-        UserManager<IdentityUser> userManager,
-        SignInManager<IdentityUser> signInManager,
-        IConfiguration configuration)
+    public AuthController(IAuthService authService)
     {
-        _userManager = userManager;
-        _signInManager = signInManager;
-        _configuration = configuration;
+        _authService = authService;
     }
 
     /// <summary>
@@ -40,57 +29,26 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(RegisterResponse), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<RegisterResponse>> Register([FromBody] RegisterRequest request)
     {
-        var response = new RegisterResponse();
-
         if (!ModelState.IsValid)
         {
-            response.Success = false;
-            response.Message = "Dados inválidos";
-            response.Errors = ModelState.Values
-                .SelectMany(v => v.Errors)
-                .Select(e => e.ErrorMessage)
-                .ToList();
-            return BadRequest(response);
+            var errorResponse = new RegisterResponse
+            {
+                Success = false,
+                Message = "Dados inválidos",
+                Errors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .ToList()
+            };
+            return BadRequest(errorResponse);
         }
 
-        var existingUser = await _userManager.FindByEmailAsync(request.Email);
-        if (existingUser != null)
+        var response = await _authService.RegisterAsync(request);
+
+        if (!response.Success)
         {
-            response.Success = false;
-            response.Message = "Usuário com este email já existe";
-            response.Errors.Add("Email já está em uso");
             return BadRequest(response);
         }
-
-        existingUser = await _userManager.FindByNameAsync(request.UserName);
-        if (existingUser != null)
-        {
-            response.Success = false;
-            response.Message = "Nome de usuário já existe";
-            response.Errors.Add("Nome de usuário já está em uso");
-            return BadRequest(response);
-        }
-
-        var user = new IdentityUser
-        {
-            UserName = request.UserName,
-            Email = request.Email,
-            EmailConfirmed = true
-        };
-
-        var result = await _userManager.CreateAsync(user, request.Password);
-
-        if (!result.Succeeded)
-        {
-            response.Success = false;
-            response.Message = "Erro ao criar usuário";
-            response.Errors = result.Errors.Select(e => e.Description).ToList();
-            return BadRequest(response);
-        }
-
-        response.Success = true;
-        response.Message = "Usuário criado com sucesso";
-        response.UserId = user.Id;
 
         return Ok(response);
     }
@@ -107,80 +65,24 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
-        var response = new LoginResponse();
-
         if (!ModelState.IsValid)
         {
-            response.Success = false;
-            response.Message = "Dados inválidos";
-            return BadRequest(response);
+            var errorResponse = new LoginResponse
+            {
+                Success = false,
+                Message = "Dados inválidos"
+            };
+            return BadRequest(errorResponse);
         }
 
-        var user = await _userManager.FindByEmailAsync(request.UserNameOrEmail) 
-                   ?? await _userManager.FindByNameAsync(request.UserNameOrEmail);
+        var response = await _authService.LoginAsync(request);
 
-        if (user == null)
+        if (!response.Success)
         {
-            response.Success = false;
-            response.Message = "Usuário ou senha inválidos";
             return Unauthorized(response);
         }
-
-        var signInResult = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
-
-        if (!signInResult.Succeeded)
-        {
-            response.Success = false;
-            response.Message = "Usuário ou senha inválidos";
-            return Unauthorized(response);
-        }
-
-        var token = GenerateJwtToken(user);
-        var expirationMinutes = _configuration.GetValue<int>("Jwt:ExpirationMinutes", 60);
-
-        response.Success = true;
-        response.Message = "Login realizado com sucesso";
-        response.Token = token;
-        response.ExpiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes);
-        response.UserId = user.Id;
-        response.UserName = user.UserName;
-        response.Email = user.Email;
 
         return Ok(response);
-    }
-
-    private string GenerateJwtToken(IdentityUser user)
-    {
-        var jwtSettings = _configuration.GetSection("Jwt");
-        var secretKey = jwtSettings["Secret"] ?? throw new InvalidOperationException("JWT Secret not configured.");
-        var issuer = jwtSettings["Issuer"] ?? throw new InvalidOperationException("JWT Issuer not configured.");
-        var audience = jwtSettings["Audience"] ?? throw new InvalidOperationException("JWT Audience not configured.");
-        var expirationMinutes = jwtSettings.GetValue<int>("ExpirationMinutes", 60);
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.UTF8.GetBytes(secretKey);
-
-        var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.NameIdentifier, user.Id),
-            new Claim(ClaimTypes.Name, user.UserName ?? string.Empty),
-            new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
-
-        var tokenDescriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.UtcNow.AddMinutes(expirationMinutes),
-            Issuer = issuer,
-            Audience = audience,
-            SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(key),
-                SecurityAlgorithms.HmacSha256Signature)
-        };
-
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        return tokenHandler.WriteToken(token);
     }
 }
 
