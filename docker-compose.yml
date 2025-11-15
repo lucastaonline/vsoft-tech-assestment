@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vsoft-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vsoft_tech_assessment}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vsoft-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: vsoft-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - vsoft-network
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  api:
+    build:
+      context: ./vsoft-tech-assestment-back
+      dockerfile: VSoftTechAssestment.Api/Dockerfile
+    container_name: vsoft-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      ConnectionStrings__DefaultConnection: ${DATABASE_CONNECTION_STRING:-Host=postgres;Port=5432;Database=vsoft_tech_assessment;Username=postgres;Password=postgres}
+      Jwt__Secret: ${JWT_SECRET:-YourSuperSecretKeyThatMustBeAtLeast32CharactersLong!}
+      Jwt__Issuer: ${JWT_ISSUER:-VSoftTechAssestment}
+      Jwt__Audience: ${JWT_AUDIENCE:-VSoftTechAssestment}
+      Jwt__ExpirationMinutes: ${JWT_EXPIRATION_MINUTES:-60}
+      RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      RabbitMQ__Port: ${RABBITMQ_PORT:-5672}
+      RabbitMQ__UserName: ${RABBITMQ_USERNAME:-guest}
+      RabbitMQ__Password: ${RABBITMQ_PASSWORD:-guest}
+      FrontendUrl: ${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - vsoft-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./vsoft-tech-assestment-front
+      dockerfile: Dockerfile
+    container_name: vsoft-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - vsoft-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+
+
+networks:
+  vsoft-network:
+    driver: bridge

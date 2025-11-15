@@ -88,13 +88,28 @@
             Exemplo: "user_{{random}}" gerará "user_123456", "user_789012", etc.
             </remarks>
         </member>
-        <member name="T:VSoftTechAssestment.Api.Migrations.InitialIdentityMigration">
+        <member name="T:VSoftTechAssestment.Api.Migrations.InitialMigration">
             <inheritdoc />
         </member>
-        <member name="M:VSoftTechAssestment.Api.Migrations.InitialIdentityMigration.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+        <member name="M:VSoftTechAssestment.Api.Migrations.InitialMigration.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
             <inheritdoc />
         </member>
-        <member name="M:VSoftTechAssestment.Api.Migrations.InitialIdentityMigration.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+        <member name="M:VSoftTechAssestment.Api.Migrations.InitialMigration.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VSoftTechAssestment.Api.Migrations.InitialMigration.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VSoftTechAssestment.Api.Migrations.ConvertDateTimeToUtc">
+            <inheritdoc />
+        </member>
+        <member name="M:VSoftTechAssestment.Api.Migrations.ConvertDateTimeToUtc.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VSoftTechAssestment.Api.Migrations.ConvertDateTimeToUtc.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VSoftTechAssestment.Api.Migrations.ConvertDateTimeToUtc.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
     </members>

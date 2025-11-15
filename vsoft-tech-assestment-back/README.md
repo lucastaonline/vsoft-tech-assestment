@@ -64,6 +64,8 @@ dotnet tool install --global dotnet-ef
    dotnet ef database update
    ```
 
+**Nota:** Migrations devem ser executadas manualmente. Isso segue as melhores práticas para evitar problemas em produção e dar controle sobre quando mudanças de schema ocorrem.
+
 ## Executando o Projeto
 
 ```bash

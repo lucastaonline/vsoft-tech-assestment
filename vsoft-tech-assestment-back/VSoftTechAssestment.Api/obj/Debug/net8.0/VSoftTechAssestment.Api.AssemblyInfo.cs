@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("VSoftTechAssestment.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b71f52d2c7c7177b49964781e4e565221d822196")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4a6715e7a39633497fc57f6f092dd4dac3c6b352")]
 [assembly: System.Reflection.AssemblyProductAttribute("VSoftTechAssestment.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("VSoftTechAssestment.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -14,12 +14,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// Configure Database
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+// Configure Database - prioritize environment variables
+var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(connectionString, npgsqlOptions => 
+        npgsqlOptions.MigrationsAssembly("VSoftTechAssestment.Api")));
 
 // Configure Identity
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
@@ -110,11 +112,27 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddSingleton<IRabbitMQService, RabbitMQService>();
 
 // Configure CORS for frontend communication
+// Support both development and Docker environments
+var corsOrigins = new List<string>
+{
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173"
+};
+
+// Add frontend URL from environment if provided
+var frontendUrl = Environment.GetEnvironmentVariable("FrontendUrl");
+if (!string.IsNullOrEmpty(frontendUrl) && !corsOrigins.Contains(frontendUrl))
+{
+    corsOrigins.Add(frontendUrl);
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+        policy.WithOrigins(corsOrigins.ToArray())
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -136,6 +154,12 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Health check endpoint
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
+   .WithName("HealthCheck")
+   .WithTags("Health");
+
 app.MapControllers();
 
 app.Run();
