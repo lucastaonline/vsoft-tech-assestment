@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="../buildMultiTargeting/VSoftTechAssestment.Api.props" />
-</Project>
