@@ -111,6 +111,7 @@ export async function moveTask(id: string, newStatus: TaskStatus, currentTask: T
         description: currentTask.description || '',
         dueDate: currentTask.dueDate || new Date().toISOString(),
         status: newStatus,
+        userId: currentTask.userId,
     }
 
     return updateTask(id, updateData)
