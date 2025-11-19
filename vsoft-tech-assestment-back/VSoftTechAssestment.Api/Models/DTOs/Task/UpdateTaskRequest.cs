@@ -18,5 +18,8 @@ public class UpdateTaskRequest
 
     [Required]
     public Models.Entities.TaskStatus Status { get; set; }
+
+    [Required]
+    public string UserId { get; set; } = string.Empty;
 }
 

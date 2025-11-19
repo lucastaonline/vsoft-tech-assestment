@@ -19,15 +19,18 @@ public class TasksController : ControllerBase
     }
 
     /// <summary>
-    /// Lista todas as tarefas do usuário autenticado
+    /// Lista tarefas do usuário autenticado com suporte a paginação
     /// </summary>
-    /// <returns>Lista de tarefas do usuário</returns>
+    /// <param name="cursor">Cursor para paginação (opcional)</param>
+    /// <param name="pageSize">Tamanho da página (padrão: 20)</param>
+    /// <returns>Lista de tarefas do usuário (paginada ou completa)</returns>
     /// <response code="200">Lista de tarefas retornada com sucesso</response>
     /// <response code="401">Não autenticado</response>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<TaskResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PaginatedTasksResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<IEnumerable<TaskResponse>>> GetTasks()
+    public async Task<ActionResult> GetTasks([FromQuery] Guid? cursor = null, [FromQuery] int? pageSize = null)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
@@ -35,8 +38,16 @@ public class TasksController : ControllerBase
             return Unauthorized();
         }
 
-        var tasks = await _taskService.GetUserTasksAsync(userId);
-        return Ok(tasks);
+        // Se não há parâmetros de paginação, retornar lista completa (compatibilidade)
+        if (!cursor.HasValue && !pageSize.HasValue)
+        {
+            var tasks = await _taskService.GetUserTasksAsync(userId);
+            return Ok(tasks);
+        }
+
+        // Retornar paginado
+        var paginatedResult = await _taskService.GetUserTasksPaginatedAsync(userId, cursor, pageSize ?? 20);
+        return Ok(paginatedResult);
     }
 
     /// <summary>
@@ -91,11 +102,14 @@ public class TasksController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
+        var authenticatedUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(authenticatedUserId))
         {
             return Unauthorized();
         }
+
+        // Se userId não foi fornecido no request, usa o usuário autenticado
+        var userId = !string.IsNullOrEmpty(request.UserId) ? request.UserId : authenticatedUserId;
 
         var task = await _taskService.CreateTaskAsync(request, userId);
         return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
@@ -121,13 +135,20 @@ public class TasksController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
+        var authenticatedUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(authenticatedUserId))
         {
             return Unauthorized();
         }
 
-        var updated = await _taskService.UpdateTaskAsync(id, request, userId);
+        // Validar que userId foi fornecido no request
+        if (string.IsNullOrEmpty(request.UserId))
+        {
+            return BadRequest(new { error = "UserId é obrigatório" });
+        }
+
+        // Para update, userId é obrigatório e atualiza o responsável da tarefa
+        var updated = await _taskService.UpdateTaskAsync(id, request, authenticatedUserId, request.UserId);
         
         if (!updated)
         {

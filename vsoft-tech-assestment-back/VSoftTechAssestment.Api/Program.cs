@@ -58,6 +58,24 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
     };
+
+    // Configurar para ler token do cookie se não estiver no header
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            // Se não há token no header Authorization, tentar ler do cookie
+            if (string.IsNullOrEmpty(context.Token))
+            {
+                var token = context.Request.Cookies["auth_token"];
+                if (!string.IsNullOrEmpty(token))
+                {
+                    context.Token = token;
+                }
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 // Configure Swagger with JWT support

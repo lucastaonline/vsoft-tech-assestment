@@ -17,5 +17,7 @@ public class CreateTaskRequest
     public DateTime DueDate { get; set; }
 
     public Models.Entities.TaskStatus Status { get; set; } = Models.Entities.TaskStatus.Pending;
+
+    public string? UserId { get; set; }
 }
 

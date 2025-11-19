@@ -1,35 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { createClient } from '@/lib/api/client'
-import { postApiAuthLogin, postApiAuthRegister } from '@/lib/api/sdk.gen'
-import type { LoginRequest, RegisterRequest, LoginResponse, RegisterResponse } from '@/lib/api/types.gen'
-
-// URL da API - Docker expõe na porta 8080, desenvolvimento local na 5001
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-
-// Criar cliente com configuração base
-const apiClient = createClient({
-    baseUrl: API_BASE_URL,
-})
-
-/**
- * Configurar token de autenticação no cliente
- */
-function setAuthToken(token: string | null) {
-    if (token) {
-        apiClient.setConfig({
-            headers: {
-                Authorization: `Bearer ${token}`,
-            } as Record<string, string>,
-        })
-    } else {
-        // Remover token
-        const config = apiClient.getConfig()
-        const headers = { ...(config.headers as Record<string, string>) }
-        delete headers.Authorization
-        apiClient.setConfig({ headers })
-    }
-}
+import * as authService from '@/services/authService'
+import type { LoginRequest, RegisterRequest } from '@/lib/api/types.gen'
 
 interface User {
     id: string
@@ -38,14 +10,16 @@ interface User {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-    const token = ref<string | null>(localStorage.getItem('auth_token'))
+    // Com cookies HttpOnly, não armazenamos token no frontend
+    // O token está seguro no cookie HttpOnly
     const user = ref<User | null>(null)
     const loading = ref(false)
     const error = ref<string | null>(null)
 
-    const isAuthenticated = computed(() => !!token.value && !!user.value)
+    // Verificar autenticação checando se há cookie (via API ou checando user)
+    const isAuthenticated = computed(() => !!user.value)
 
-    // Carregar usuário do token (se necessário)
+    // Carregar usuário do localStorage (apenas dados do usuário, não token)
     const loadUser = () => {
         const savedUser = localStorage.getItem('auth_user')
         if (savedUser) {
@@ -65,29 +39,11 @@ export const useAuthStore = defineStore('auth', () => {
         error.value = null
 
         try {
-            // Chamar API diretamente
-            const apiResponse = await postApiAuthLogin({
-                body: credentials,
-            })
+            const response = await authService.login(credentials)
 
-            // Tratar resposta do cliente gerado
-            if (apiResponse.error) {
-                const error = apiResponse.error as LoginResponse
-                throw new Error(error.message || 'Erro ao fazer login')
-            }
-
-            if (!apiResponse.data) {
-                throw new Error('Resposta vazia do servidor')
-            }
-
-            const response = apiResponse.data as LoginResponse
-
-            if (response.success && response.token) {
-                token.value = response.token
-                localStorage.setItem('auth_token', response.token)
-
-                // Configurar token no cliente API
-                setAuthToken(response.token)
+            if (response.success) {
+                // Token está no cookie HttpOnly (enviado pelo backend)
+                // Não armazenamos token no frontend por segurança
 
                 // Salvar informações do usuário
                 if (response.userId && response.userName && response.email) {
@@ -97,10 +53,6 @@ export const useAuthStore = defineStore('auth', () => {
                         email: response.email,
                     }
                     localStorage.setItem('auth_user', JSON.stringify(user.value))
-                }
-
-                if (response.refreshToken) {
-                    localStorage.setItem('auth_refresh_token', response.refreshToken)
                 }
 
                 return { success: true }
@@ -122,23 +74,7 @@ export const useAuthStore = defineStore('auth', () => {
         error.value = null
 
         try {
-            // Chamar API diretamente
-            const apiResponse = await postApiAuthRegister({
-                body: data,
-            })
-
-            // Tratar resposta do cliente gerado
-            if (apiResponse.error) {
-                const error = apiResponse.error as RegisterResponse
-                const errorMessage = error.errors?.join(', ') || error.message || 'Erro ao registrar'
-                throw new Error(errorMessage)
-            }
-
-            if (!apiResponse.data) {
-                throw new Error('Resposta vazia do servidor')
-            }
-
-            const response = apiResponse.data as RegisterResponse
+            const response = await authService.register(data)
 
             if (response.success) {
                 return { success: true, message: response.message || 'Registro realizado com sucesso' }
@@ -156,31 +92,26 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
-    const logout = () => {
-        token.value = null
-        user.value = null
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('auth_refresh_token')
-        localStorage.removeItem('auth_user')
-        error.value = null
-
-        // Remover token do cliente API
-        setAuthToken(null)
-    }
-
-    const checkAuth = () => {
-        const savedToken = localStorage.getItem('auth_token')
-        if (savedToken) {
-            token.value = savedToken
-            setAuthToken(savedToken) // Configurar token no cliente API
-            loadUser()
-        } else {
-            logout()
+    const logout = async () => {
+        try {
+            await authService.logout()
+        } catch (error) {
+            console.error('Erro ao fazer logout:', error)
+        } finally {
+            // Limpar estado local
+            user.value = null
+            localStorage.removeItem('auth_user')
+            error.value = null
         }
     }
 
+    const checkAuth = () => {
+        // Com cookies HttpOnly, não podemos verificar diretamente
+        // Carregamos apenas os dados do usuário salvos
+        loadUser()
+    }
+
     return {
-        token,
         user,
         loading,
         error,

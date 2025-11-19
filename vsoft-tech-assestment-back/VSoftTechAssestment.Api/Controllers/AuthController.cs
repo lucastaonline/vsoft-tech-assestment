@@ -82,7 +82,65 @@ public class AuthController : ControllerBase
             return Unauthorized(response);
         }
 
-        return Ok(response);
+        // Configurar cookies HttpOnly para segurança
+        if (response.Success && response.Token != null)
+        {
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true, // Protege contra XSS
+                Secure = !Request.Host.Host.Contains("localhost"), // HTTPS em produção, HTTP em localhost
+                SameSite = SameSiteMode.Strict, // Protege contra CSRF
+                Expires = response.ExpiresAt.HasValue 
+                    ? new DateTimeOffset(response.ExpiresAt.Value)
+                    : DateTimeOffset.UtcNow.AddDays(7), // Default 7 dias
+                Path = "/"
+            };
+
+            Response.Cookies.Append("auth_token", response.Token, cookieOptions);
+
+            if (response.RefreshToken != null)
+            {
+                var refreshCookieOptions = new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = !Request.Host.Host.Contains("localhost"),
+                    SameSite = SameSiteMode.Strict,
+                    Expires = DateTimeOffset.UtcNow.AddDays(30), // Refresh token dura 30 dias
+                    Path = "/"
+                };
+
+                Response.Cookies.Append("refresh_token", response.RefreshToken, refreshCookieOptions);
+            }
+        }
+
+        // Remover token do body por segurança (já está no cookie)
+        var safeResponse = new LoginResponse
+        {
+            Success = response.Success,
+            Message = response.Message,
+            UserId = response.UserId,
+            UserName = response.UserName,
+            Email = response.Email,
+            // Token e RefreshToken não são enviados no body
+        };
+
+        return Ok(safeResponse);
+    }
+
+    /// <summary>
+    /// Realiza logout e remove cookies de autenticação
+    /// </summary>
+    /// <returns>Status do logout</returns>
+    /// <response code="200">Logout realizado com sucesso</response>
+    [HttpPost("logout")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult Logout()
+    {
+        // Remover cookies de autenticação
+        Response.Cookies.Delete("auth_token");
+        Response.Cookies.Delete("refresh_token");
+
+        return Ok(new { success = true, message = "Logout realizado com sucesso" });
     }
 }
 

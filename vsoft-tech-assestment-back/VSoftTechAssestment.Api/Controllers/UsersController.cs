@@ -18,6 +18,21 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// Lista todos os usuários do sistema
+    /// </summary>
+    /// <returns>Lista de usuários (id, userName, email)</returns>
+    /// <response code="200">Lista de usuários retornada com sucesso</response>
+    /// <response code="401">Não autenticado</response>
+    [HttpGet]
+    [ProducesResponseType(typeof(IEnumerable<UserListItemResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IEnumerable<UserListItemResponse>>> GetUsers()
+    {
+        var users = await _userService.GetAllUsersAsync();
+        return Ok(users);
+    }
+
+    /// <summary>
     /// Cria múltiplos usuários aleatórios em massa
     /// </summary>
     /// <param name="request">Quantidade de usuários e máscara de nome de usuário</param>

@@ -97,6 +97,21 @@ public class UserService : IUserService
         return response;
     }
 
+    public async Task<IEnumerable<UserListItemResponse>> GetAllUsersAsync()
+    {
+        var users = _userManager.Users
+            .OrderBy(u => u.UserName)
+            .Select(u => new UserListItemResponse
+            {
+                Id = u.Id,
+                UserName = u.UserName ?? string.Empty,
+                Email = u.Email ?? string.Empty
+            })
+            .ToList();
+
+        return await Task.FromResult(users);
+    }
+
     private string GenerateRandomPassword(int length)
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";

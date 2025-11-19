@@ -10,6 +10,11 @@ public interface ITaskService
     Task<IEnumerable<TaskResponse>> GetUserTasksAsync(string userId);
 
     /// <summary>
+    /// Obtém tarefas de um usuário com paginação baseada em cursor
+    /// </summary>
+    Task<PaginatedTasksResponse> GetUserTasksPaginatedAsync(string userId, Guid? cursor, int pageSize);
+
+    /// <summary>
     /// Obtém uma tarefa específica por ID (verificando se pertence ao usuário)
     /// </summary>
     Task<TaskResponse?> GetTaskByIdAsync(Guid id, string userId);
@@ -20,9 +25,9 @@ public interface ITaskService
     Task<TaskResponse> CreateTaskAsync(CreateTaskRequest request, string userId);
 
     /// <summary>
-    /// Atualiza uma tarefa existente (verificando se pertence ao usuário)
+    /// Atualiza uma tarefa existente (verificando se pertence ao usuário autenticado)
     /// </summary>
-    Task<bool> UpdateTaskAsync(Guid id, UpdateTaskRequest request, string userId);
+    Task<bool> UpdateTaskAsync(Guid id, UpdateTaskRequest request, string authenticatedUserId, string newUserId);
 
     /// <summary>
     /// Exclui uma tarefa (verificando se pertence ao usuário)
