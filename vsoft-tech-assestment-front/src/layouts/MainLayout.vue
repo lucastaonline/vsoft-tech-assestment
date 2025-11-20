@@ -12,10 +12,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Moon, Sun, LogOut } from 'lucide-vue-next'
+import { Moon, Sun, LogOut, Home, LayoutDashboard } from 'lucide-vue-next'
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const { isDark, toggleTheme } = useTheme()
 
@@ -47,6 +49,32 @@ const handleLogout = async () => {
               VSoft
             </span>
           </router-link>
+          
+          <!-- Navegação -->
+          <nav class="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              :class="{
+                'bg-accent': route.name === 'home',
+              }"
+              @click="router.push('/')"
+            >
+              <Home class="mr-2 h-4 w-4" />
+              Home
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              :class="{
+                'bg-accent': route.name === 'dashboard',
+              }"
+              @click="router.push('/dashboard')"
+            >
+              <LayoutDashboard class="mr-2 h-4 w-4" />
+              Dashboard
+            </Button>
+          </nav>
         </div>
 
         <div class="flex items-center gap-4">
