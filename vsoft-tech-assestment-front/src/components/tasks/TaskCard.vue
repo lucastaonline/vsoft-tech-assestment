@@ -1,16 +1,66 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { MoreVertical, Edit, Trash2, ArrowRight } from 'lucide-vue-next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { TaskResponse } from '@/lib/api/types.gen'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import type { TaskResponse, TaskStatus } from '@/lib/api/types.gen'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { useDateUtils } from '@/composables/useDateUtils'
 
 const props = defineProps<{
   task: TaskResponse
+  currentStatus: TaskStatus
+}>()
+
+const emit = defineEmits<{
+  edit: [task: TaskResponse]
+  delete: [taskId: string]
+  move: [taskId: string, newStatus: TaskStatus]
 }>()
 
 const { formatDate, isOverdue: checkIsOverdue } = useDateUtils()
+
+// Obter outras colunas disponíveis (excluindo a atual)
+const availableStatuses = computed(() => {
+  const allStatuses: TaskStatus[] = [0, 1, 2]
+  return allStatuses.filter(status => status !== props.currentStatus)
+})
+
+// Nomes das colunas
+const statusNames: Record<TaskStatus, string> = {
+  0: 'To Do',
+  1: 'In Progress',
+  2: 'Done',
+}
+
+// Handlers
+const handleEdit = () => {
+  emit('edit', props.task)
+}
+
+const handleDelete = () => {
+  if (!props.task.id) return
+  
+  if (confirm('Tem certeza que deseja deletar esta tarefa?')) {
+    emit('delete', props.task.id)
+  }
+}
+
+const handleMove = (newStatus: TaskStatus) => {
+  if (props.task.id) {
+    emit('move', props.task.id, newStatus)
+  }
+}
 
 // Preview da descrição (primeiras linhas, sem markdown)
 const descriptionPreview = computed(() => {
@@ -42,11 +92,60 @@ const isOverdue = computed(() => {
 
 <template>
   <Card
-    class="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow mb-3"
+    class="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow mb-3 relative"
     :class="{ 'border-destructive': isOverdue }"
   >
+    <!-- Menu de ações no canto superior direito -->
+    <div class="absolute top-2 right-2 z-10" @click.stop>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <button
+            class="rounded-md p-1 hover:bg-muted transition-colors"
+            @click.stop
+          >
+            <MoreVertical class="h-4 w-4 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="w-48">
+          <DropdownMenuItem @click="handleEdit" class="cursor-pointer">
+            <Edit class="mr-2 h-4 w-4" />
+            Editar
+          </DropdownMenuItem>
+          
+          <DropdownMenuSeparator />
+          
+          <DropdownMenuSub v-if="availableStatuses.length > 0">
+            <DropdownMenuSubTrigger class="cursor-pointer">
+              <ArrowRight class="mr-2 h-4 w-4" />
+              Mover para
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem
+                v-for="status in availableStatuses"
+                :key="status"
+                @click="handleMove(status)"
+                class="cursor-pointer"
+              >
+                {{ statusNames[status] }}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          
+          <DropdownMenuSeparator />
+          
+          <DropdownMenuItem
+            @click="handleDelete"
+            class="cursor-pointer text-destructive focus:text-destructive"
+          >
+            <Trash2 class="mr-2 h-4 w-4" />
+            Deletar
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+
     <CardHeader class="pb-3">
-      <CardTitle class="text-base font-semibold line-clamp-2">
+      <CardTitle class="text-base font-semibold line-clamp-2 pr-8">
         {{ task.title || 'Sem título' }}
       </CardTitle>
     </CardHeader>

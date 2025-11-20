@@ -253,6 +253,8 @@ const handleTaskMove = async (taskId: string, newStatus: TaskStatus, oldStatus: 
             @clear-filter="() => tasksStore.clearFilter(column.status)"
             @task-click="handleEditTask"
             @task-move="handleTaskMove"
+            @task-edit="handleEditTask"
+            @task-delete="handleDeleteTask"
           />
         </div>
       </div>

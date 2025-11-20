@@ -25,6 +25,8 @@ const emit = defineEmits<{
   'scroll': [event: Event, status: TaskStatus]
   'task-click': [task: TaskResponse]
   'task-move': [taskId: string, newStatus: TaskStatus, oldStatus: TaskStatus]
+  'task-edit': [task: TaskResponse]
+  'task-delete': [taskId: string]
 }>()
 
 // Tasks locais para drag and drop (sincronizadas com props)
@@ -195,7 +197,13 @@ const handleClearFilter = () => {
             :data-task-status="task.status"
             class="hidden"
           >
-            <TaskCard :task="task" />
+            <TaskCard
+              :task="task"
+              :current-status="props.status"
+              @edit="emit('task-edit', $event)"
+              @delete="emit('task-delete', $event)"
+              @move="(taskId, newStatus) => emit('task-move', taskId, newStatus, props.status)"
+            />
           </div>
           <div class="text-center text-sm text-muted-foreground py-8 mt-4">
             <p>Nenhuma tarefa corresponde aos filtros</p>
@@ -210,7 +218,13 @@ const handleClearFilter = () => {
               @click="emit('task-click', task)"
               class="cursor-pointer"
             >
-              <TaskCard :task="task" />
+              <TaskCard
+                :task="task"
+                :current-status="props.status"
+                @edit="emit('task-edit', $event)"
+                @delete="emit('task-delete', $event)"
+                @move="(taskId, newStatus) => emit('task-move', taskId, newStatus, props.status)"
+              />
             </div>
           </template>
         </template>
