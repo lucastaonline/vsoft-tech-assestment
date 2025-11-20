@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useCookieConsent } from '@/composables/useCookieConsent'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,8 +26,24 @@ import { toTypedSchema } from '@vee-validate/zod'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { hasConsent } = useCookieConsent()
 
 const activeTab = ref('login')
+const showConsentBanner = () => {
+  window.dispatchEvent(new Event('cookie-consent:show'))
+}
+
+onMounted(() => {
+  if (!hasConsent.value) {
+    showConsentBanner()
+  }
+})
+
+watch(hasConsent, (value) => {
+  if (!value) {
+    showConsentBanner()
+  }
+})
 
 // Schema de validação para Login
 const loginSchema = z.object({
@@ -45,9 +62,16 @@ const loginFormSchema = toTypedSchema(loginSchema)
 const registerFormSchema = toTypedSchema(registerSchema)
 
 const onSubmitLogin = async (values: unknown) => {
+  // Verificar se o usuário aceitou os cookies
+  if (!hasConsent.value) {
+    showConsentBanner()
+    toast.error('É necessário aceitar os cookies para fazer login')
+    return
+  }
+
   const loginValues = values as z.infer<typeof loginSchema>
   const result = await authStore.login(loginValues)
-  
+
   if (result.success) {
     toast.success('Login realizado com sucesso!')
     router.push('/')
@@ -57,9 +81,16 @@ const onSubmitLogin = async (values: unknown) => {
 }
 
 const onSubmitRegister = async (values: unknown) => {
+  // Verificar se o usuário aceitou os cookies
+  if (!hasConsent.value) {
+    showConsentBanner()
+    toast.error('É necessário aceitar os cookies para se registrar')
+    return
+  }
+
   const registerValues = values as z.infer<typeof registerSchema>
   const result = await authStore.register(registerValues)
-  
+
   if (result.success) {
     toast.success('Registro realizado com sucesso! Faça login para continuar.')
     activeTab.value = 'login'
@@ -70,7 +101,8 @@ const onSubmitRegister = async (values: unknown) => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
+  <div
+    class="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
     <div class="w-full max-w-md">
       <Card class="border-border/50 bg-card/50 backdrop-blur-sm shadow-2xl">
         <CardHeader class="space-y-1 text-center">
@@ -89,21 +121,12 @@ const onSubmitRegister = async (values: unknown) => {
             </TabsList>
 
             <TabsContent value="login" class="space-y-4">
-              <Form
-                :validation-schema="loginFormSchema"
-                @submit="onSubmitLogin"
-                class="space-y-4"
-              >
+              <Form :validation-schema="loginFormSchema" @submit="onSubmitLogin" class="space-y-4">
                 <div class="space-y-2">
                   <Label for="login-username">Usuário ou Email</Label>
                   <FormField v-slot="{ componentField, errors }" name="userNameOrEmail">
-                    <Input
-                      id="login-username"
-                      type="text"
-                      placeholder="Digite seu usuário ou email"
-                      v-bind="componentField"
-                      :class="{ 'border-destructive': errors.length > 0 }"
-                    />
+                    <Input id="login-username" type="text" placeholder="Digite seu usuário ou email"
+                      v-bind="componentField" :class="{ 'border-destructive': errors.length > 0 }" />
                     <p v-if="errors.length" class="text-sm text-destructive mt-1">
                       {{ errors[0] }}
                     </p>
@@ -113,45 +136,27 @@ const onSubmitRegister = async (values: unknown) => {
                 <div class="space-y-2">
                   <Label for="login-password">Senha</Label>
                   <FormField v-slot="{ componentField, errors }" name="password">
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="Digite sua senha"
-                      v-bind="componentField"
-                      :class="{ 'border-destructive': errors.length > 0 }"
-                    />
+                    <Input id="login-password" type="password" placeholder="Digite sua senha" v-bind="componentField"
+                      :class="{ 'border-destructive': errors.length > 0 }" />
                     <p v-if="errors.length" class="text-sm text-destructive mt-1">
                       {{ errors[0] }}
                     </p>
                   </FormField>
                 </div>
 
-                <Button
-                  type="submit"
-                  class="w-full"
-                  :disabled="authStore.loading"
-                >
+                <Button type="submit" class="w-full" :disabled="authStore.loading">
                   {{ authStore.loading ? 'Entrando...' : 'Entrar' }}
                 </Button>
               </Form>
             </TabsContent>
 
             <TabsContent value="register" class="space-y-4">
-              <Form
-                :validation-schema="registerFormSchema"
-                @submit="onSubmitRegister"
-                class="space-y-4"
-              >
+              <Form :validation-schema="registerFormSchema" @submit="onSubmitRegister" class="space-y-4">
                 <div class="space-y-2">
                   <Label for="register-email">Email</Label>
                   <FormField v-slot="{ componentField, errors }" name="email">
-                    <Input
-                      id="register-email"
-                      type="email"
-                      placeholder="email@exemplo.com"
-                      v-bind="componentField"
-                      :class="{ 'border-destructive': errors.length > 0 }"
-                    />
+                    <Input id="register-email" type="email" placeholder="email@exemplo.com" v-bind="componentField"
+                      :class="{ 'border-destructive': errors.length > 0 }" />
                     <p v-if="errors.length" class="text-sm text-destructive mt-1">
                       {{ errors[0] }}
                     </p>
@@ -161,13 +166,8 @@ const onSubmitRegister = async (values: unknown) => {
                 <div class="space-y-2">
                   <Label for="register-username">Nome de Usuário</Label>
                   <FormField v-slot="{ componentField, errors }" name="userName">
-                    <Input
-                      id="register-username"
-                      type="text"
-                      placeholder="seu.usuario"
-                      v-bind="componentField"
-                      :class="{ 'border-destructive': errors.length > 0 }"
-                    />
+                    <Input id="register-username" type="text" placeholder="seu.usuario" v-bind="componentField"
+                      :class="{ 'border-destructive': errors.length > 0 }" />
                     <p v-if="errors.length" class="text-sm text-destructive mt-1">
                       {{ errors[0] }}
                     </p>
@@ -177,24 +177,15 @@ const onSubmitRegister = async (values: unknown) => {
                 <div class="space-y-2">
                   <Label for="register-password">Senha</Label>
                   <FormField v-slot="{ componentField, errors }" name="password">
-                    <Input
-                      id="register-password"
-                      type="password"
-                      placeholder="••••••••"
-                      v-bind="componentField"
-                      :class="{ 'border-destructive': errors.length > 0 }"
-                    />
+                    <Input id="register-password" type="password" placeholder="••••••••" v-bind="componentField"
+                      :class="{ 'border-destructive': errors.length > 0 }" />
                     <p v-if="errors.length" class="text-sm text-destructive mt-1">
                       {{ errors[0] }}
                     </p>
                   </FormField>
                 </div>
 
-                <Button
-                  type="submit"
-                  class="w-full"
-                  :disabled="authStore.loading"
-                >
+                <Button type="submit" class="w-full" :disabled="authStore.loading">
                   {{ authStore.loading ? 'Registrando...' : 'Registrar' }}
                 </Button>
               </Form>
@@ -209,4 +200,3 @@ const onSubmitRegister = async (values: unknown) => {
 <style scoped>
 /* Estilos adicionais para o design Scalar */
 </style>
-

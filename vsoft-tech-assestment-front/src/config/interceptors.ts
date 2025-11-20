@@ -28,10 +28,10 @@ async function tryRefreshToken(): Promise<boolean> {
     try {
         // Importar dinamicamente para evitar dependência circular
         const { refreshToken } = await import('@/services/authService')
-        
+
         // Tentar renovar o token (o backend vai ler do cookie automaticamente)
         await refreshToken()
-        
+
         // Se chegou aqui, o refresh foi bem-sucedido
         return true
     } catch (error) {
@@ -44,29 +44,29 @@ async function tryRefreshToken(): Promise<boolean> {
 
 async function handleUnauthorized(request?: Request, options?: any) {
     if (isRedirecting) return
-    
+
     // Tentar renovar o token antes de redirecionar
     const refreshSuccess = await tryRefreshToken()
-    
+
     if (refreshSuccess) {
         // Se o refresh foi bem-sucedido, não redirecionar
         // A requisição original será retentada automaticamente pelo interceptor
         return
     }
-    
+
     // Se o refresh falhou, redirecionar para login
     isRedirecting = true
-    
+
     try {
         // Importar dinamicamente para evitar dependência circular
         const { useAuthStore } = await import('@/stores/auth')
         const router = (await import('@/router')).default
-        
+
         const authStore = useAuthStore()
-        
+
         // Limpar estado de autenticação
         await authStore.logout()
-        
+
         // Redirecionar para login com a rota atual como redirect
         const currentPath = window.location.pathname + window.location.search
         if (currentPath !== '/login' && router.currentRoute.value.name !== 'login') {
@@ -89,26 +89,35 @@ async function handleUnauthorized(request?: Request, options?: any) {
 /**
  * Configura os interceptors do cliente API
  */
+// Função auxiliar para verificar se a requisição é de autenticação (login/register)
+// Essas requisições não devem tentar refresh quando retornam 401
+function isAuthRequest(url?: string): boolean {
+    if (!url) return false
+    return url.includes('/api/Auth/login') || url.includes('/api/Auth/register')
+}
+
 export function setupApiInterceptors() {
     // Interceptor de resposta para tratar sessão expirada (401)
     client.interceptors.response.use(async (response, request, options) => {
         // Se a resposta for 401 Unauthorized, tentar renovar token
         if (response.status === 401) {
-            // Não tentar refresh se for a própria requisição de refresh
-            if (request.url?.includes('/api/Auth/refresh')) {
-                await handleUnauthorized(request, options)
+            // Não tentar refresh se for requisição de autenticação (login/register)
+            // ou se for a própria requisição de refresh
+            if (isAuthRequest(request.url) || request.url?.includes('/api/Auth/refresh')) {
+                // Para login/register, apenas retornar a resposta sem tentar refresh
+                // O erro será tratado pelo componente
                 return response
             }
 
             const refreshSuccess = await tryRefreshToken()
-            
+
             if (!refreshSuccess) {
                 await handleUnauthorized(request, options)
             }
             // Se o refresh foi bem-sucedido, a próxima requisição usará o novo token
             // A requisição atual ainda retornará 401, mas o usuário não será redirecionado
         }
-        
+
         return response
     })
 
@@ -116,21 +125,23 @@ export function setupApiInterceptors() {
     client.interceptors.error.use(async (error, response, request, options) => {
         // Se a resposta tiver status 401, tentar renovar token
         if (response && response.status === 401) {
-            // Não tentar refresh se for a própria requisição de refresh
-            if (request.url?.includes('/api/Auth/refresh')) {
-                await handleUnauthorized(request, options)
+            // Não tentar refresh se for requisição de autenticação (login/register)
+            // ou se for a própria requisição de refresh
+            if (isAuthRequest(request.url) || request.url?.includes('/api/Auth/refresh')) {
+                // Para login/register, apenas retornar o erro sem tentar refresh
+                // O erro será tratado pelo componente
                 return error
             }
 
             const refreshSuccess = await tryRefreshToken()
-            
+
             if (!refreshSuccess) {
                 await handleUnauthorized(request, options)
             }
             // Se o refresh foi bem-sucedido, o erro será propagado
             // O usuário pode tentar a ação novamente manualmente
         }
-        
+
         return error
     })
 }
