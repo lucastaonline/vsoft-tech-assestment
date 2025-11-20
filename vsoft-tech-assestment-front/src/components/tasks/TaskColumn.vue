@@ -160,6 +160,7 @@ const handleClearFilter = () => {
       
       <VueDraggable
         v-else
+        :key="`draggable-${props.status}-${localTasks.length}`"
         v-model="localTasks"
         :group="{ name: 'tasks', pull: true, put: true }"
         :animation="200"
@@ -188,17 +189,17 @@ const handleClearFilter = () => {
           </div>
         </template>
         <template v-else>
-          <div
-            v-for="task in localTasks"
-            v-show="taskPassesFilter(task)"
-            :key="task.id || `temp-${task.title}`"
-            :data-task-id="task.id"
-            :data-task-status="task.status"
-            @click="emit('task-click', task)"
-            class="cursor-pointer"
-          >
-            <TaskCard :task="task" />
-          </div>
+          <template v-for="task in localTasks" :key="task.id || `temp-${task.title}`">
+            <div
+              v-if="taskPassesFilter(task)"
+              :data-task-id="task.id"
+              :data-task-status="task.status"
+              @click="emit('task-click', task)"
+              class="cursor-pointer"
+            >
+              <TaskCard :task="task" />
+            </div>
+          </template>
         </template>
       </VueDraggable>
     </div>

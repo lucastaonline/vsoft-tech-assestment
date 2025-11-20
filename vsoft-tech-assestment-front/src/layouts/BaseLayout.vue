@@ -11,7 +11,7 @@ useTheme()
 </script>
 
 <template>
-  <div class="min-h-screen bg-background text-foreground">
+  <div class="min-h-screen w-full bg-background text-foreground">
     <!-- Conteúdo da aplicação -->
     <slot />
     

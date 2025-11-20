@@ -5,7 +5,7 @@ import App from './App.vue'
 import router from './router'
 import './style.css'
 // Configurar cliente API para enviar cookies (credentials: 'include')
-import './lib/api/clientConfig'
+import './config/apiClient'
 
 const app = createApp(App)
 const pinia = createPinia()

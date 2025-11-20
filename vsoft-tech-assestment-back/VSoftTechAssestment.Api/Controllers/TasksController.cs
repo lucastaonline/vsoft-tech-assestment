@@ -19,11 +19,11 @@ public class TasksController : ControllerBase
     }
 
     /// <summary>
-    /// Lista tarefas do usuário autenticado com suporte a paginação
+    /// Lista todas as tarefas com suporte a paginação
     /// </summary>
     /// <param name="cursor">Cursor para paginação (opcional)</param>
     /// <param name="pageSize">Tamanho da página (padrão: 20)</param>
-    /// <returns>Lista de tarefas do usuário (paginada ou completa)</returns>
+    /// <returns>Lista de todas as tarefas (paginada ou completa)</returns>
     /// <response code="200">Lista de tarefas retornada com sucesso</response>
     /// <response code="401">Não autenticado</response>
     [HttpGet]
@@ -41,12 +41,12 @@ public class TasksController : ControllerBase
         // Se não há parâmetros de paginação, retornar lista completa (compatibilidade)
         if (!cursor.HasValue && !pageSize.HasValue)
         {
-            var tasks = await _taskService.GetUserTasksAsync(userId);
+            var tasks = await _taskService.GetAllTasksAsync();
             return Ok(tasks);
         }
 
         // Retornar paginado
-        var paginatedResult = await _taskService.GetUserTasksPaginatedAsync(userId, cursor, pageSize ?? 20);
+        var paginatedResult = await _taskService.GetAllTasksPaginatedAsync(cursor, pageSize ?? 20);
         return Ok(paginatedResult);
     }
 
@@ -70,7 +70,7 @@ public class TasksController : ControllerBase
             return Unauthorized();
         }
 
-        var task = await _taskService.GetTaskByIdAsync(id, userId);
+        var task = await _taskService.GetTaskByIdAsync(id);
         
         if (task == null)
         {
@@ -116,19 +116,21 @@ public class TasksController : ControllerBase
     }
 
     /// <summary>
-    /// Atualiza uma tarefa existente
+    /// Atualiza uma tarefa existente (apenas se o usuário autenticado for o dono)
     /// </summary>
     /// <param name="id">ID da tarefa a ser atualizada</param>
     /// <param name="request">Dados atualizados da tarefa</param>
-    /// <returns>Sem conteúdo (204)</returns>
-    /// <response code="204">Tarefa atualizada com sucesso</response>
+    /// <returns>Tarefa atualizada</returns>
+    /// <response code="200">Tarefa atualizada com sucesso</response>
+    /// <response code="403">Usuário não é o dono da tarefa</response>
     /// <response code="404">Tarefa não encontrada</response>
     /// <response code="401">Não autenticado</response>
     [HttpPut("{id}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> UpdateTask(Guid id, UpdateTaskRequest request)
+    public async Task<ActionResult<TaskResponse>> UpdateTask(Guid id, UpdateTaskRequest request)
     {
         if (!ModelState.IsValid)
         {
@@ -147,38 +149,66 @@ public class TasksController : ControllerBase
             return BadRequest(new { error = "UserId é obrigatório" });
         }
 
-        // Para update, userId é obrigatório e atualiza o responsável da tarefa
-        var updated = await _taskService.UpdateTaskAsync(id, request, authenticatedUserId, request.UserId);
-        
-        if (!updated)
+        // Verificar se a tarefa existe
+        var existingTask = await _taskService.GetTaskByIdAsync(id);
+        if (existingTask == null)
         {
             return NotFound();
         }
 
-        return NoContent();
+        // Verificar se o usuário autenticado é o dono da tarefa
+        if (existingTask.UserId != authenticatedUserId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Você não tem permissão para editar esta tarefa" });
+        }
+
+        // Para update, userId é obrigatório e atualiza o responsável da tarefa
+        var updatedTask = await _taskService.UpdateTaskAsync(id, request, authenticatedUserId, request.UserId);
+        
+        if (updatedTask == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(updatedTask);
     }
 
     /// <summary>
-    /// Exclui uma tarefa
+    /// Exclui uma tarefa (apenas se o usuário autenticado for o dono)
     /// </summary>
     /// <param name="id">ID da tarefa a ser excluída</param>
     /// <returns>Sem conteúdo (204)</returns>
     /// <response code="204">Tarefa excluída com sucesso</response>
+    /// <response code="403">Usuário não é o dono da tarefa</response>
     /// <response code="404">Tarefa não encontrada</response>
     /// <response code="401">Não autenticado</response>
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> DeleteTask(Guid id)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
+        var authenticatedUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(authenticatedUserId))
         {
             return Unauthorized();
         }
 
-        var deleted = await _taskService.DeleteTaskAsync(id, userId);
+        // Verificar se a tarefa existe
+        var existingTask = await _taskService.GetTaskByIdAsync(id);
+        if (existingTask == null)
+        {
+            return NotFound();
+        }
+
+        // Verificar se o usuário autenticado é o dono da tarefa
+        if (existingTask.UserId != authenticatedUserId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Você não tem permissão para deletar esta tarefa" });
+        }
+
+        var deleted = await _taskService.DeleteTaskAsync(id, authenticatedUserId);
         
         if (!deleted)
         {

@@ -38,9 +38,9 @@ const handleLogout = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-background">
+  <div class="min-h-screen w-full bg-background">
     <header class="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div class="container flex h-16 items-center justify-between px-4">
+      <div class="container mx-auto flex h-16 items-center justify-between px-4">
         <div class="flex items-center gap-6">
           <router-link to="/" class="flex items-center space-x-2">
             <span class="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">

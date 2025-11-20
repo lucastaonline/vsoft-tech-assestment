@@ -2,13 +2,16 @@
 import { onMounted, ref, watch } from 'vue'
 import { useTasksStore } from '@/stores/tasks'
 import { useUsersStore } from '@/stores/users'
+import { useAuthStore } from '@/stores/auth'
 import TaskColumn from '@/components/tasks/TaskColumn.vue'
 import TaskModal from '@/components/tasks/TaskModal.vue'
 import { toast } from 'vue-sonner'
 import type { TaskStatus, CreateTaskRequest, UpdateTaskRequest, TaskResponse } from '@/lib/api/types.gen'
+import { ApiError } from '@/services/tasksService'
 
 const tasksStore = useTasksStore()
 const usersStore = useUsersStore()
+const authStore = useAuthStore()
 
 // Status das colunas
 const columns = [
@@ -67,8 +70,17 @@ const handleAddTask = (status: TaskStatus) => {
   modalOpen.value = true
 }
 
-// Abrir modal para editar task
+// Verificar se o usuário é o dono da tarefa
+const isTaskOwner = (task: TaskResponse): boolean => {
+  return authStore.user?.id === task.userId
+}
+
+// Abrir modal para editar task (apenas se for o dono)
 const handleEditTask = (task: TaskResponse) => {
+  if (!isTaskOwner(task)) {
+    toast.error('Você não tem permissão para editar esta tarefa')
+    return
+  }
   editingTask.value = task
   modalStatus.value = task.status || 0
   modalOpen.value = true
@@ -78,26 +90,72 @@ const handleEditTask = (task: TaskResponse) => {
 const handleSaveTask = async (data: CreateTaskRequest | UpdateTaskRequest) => {
   try {
     if (editingTask.value) {
-      // Atualizar
+      // Verificar novamente se é o dono antes de atualizar
+      if (!isTaskOwner(editingTask.value)) {
+        toast.error('Você não tem permissão para editar esta tarefa')
+        return
+      }
+      // Atualizar (já atualiza localmente via store)
       await tasksStore.updateTask(editingTask.value.id!, data as UpdateTaskRequest)
       toast.success('Tarefa atualizada com sucesso!')
     } else {
-      // Criar
+      // Criar (já adiciona localmente via store)
       await tasksStore.createTask(data as CreateTaskRequest)
       toast.success('Tarefa criada com sucesso!')
     }
     
-    // Recarregar tasks
-    await tasksStore.fetchTasks()
-    syncLocalTasks()
+    // Não precisa recarregar - o store já atualizou localmente
+    // O watch sincroniza automaticamente
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
-    if (editingTask.value) {
-      toast.error('Erro ao atualizar tarefa')
+    if (error instanceof ApiError) {
+      if (error.isForbidden) {
+        toast.error('Você não tem permissão para realizar esta ação')
+      } else if (error.isNotFound) {
+        toast.error('Tarefa não encontrada')
+      } else {
+        toast.error(error.message || (editingTask.value ? 'Erro ao atualizar tarefa' : 'Erro ao criar tarefa'))
+      }
     } else {
-      toast.error('Erro ao criar tarefa')
+      toast.error(editingTask.value ? 'Erro ao atualizar tarefa' : 'Erro ao criar tarefa')
     }
     console.error('Erro ao salvar task:', error)
+  }
+}
+
+// Deletar task
+const handleDeleteTask = async (taskId: string) => {
+  try {
+    const task = tasksStore.tasks.find(t => t.id === taskId)
+    if (!task) {
+      toast.error('Tarefa não encontrada')
+      return
+    }
+
+    // Verificar se é o dono
+    if (!isTaskOwner(task)) {
+      toast.error('Você não tem permissão para deletar esta tarefa')
+      return
+    }
+
+    // Deletar (já remove localmente via store com atualização otimista)
+    await tasksStore.deleteTask(taskId)
+    toast.success('Tarefa deletada com sucesso!')
+    
+    // Não precisa recarregar - o store já removeu localmente
+    // O watch sincroniza automaticamente
+  } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.isForbidden) {
+        toast.error('Você não tem permissão para deletar esta tarefa')
+      } else if (error.isNotFound) {
+        toast.error('Tarefa não encontrada')
+      } else {
+        toast.error(error.message || 'Erro ao deletar tarefa')
+      }
+    } else {
+      toast.error('Erro ao deletar tarefa')
+    }
+    console.error('Erro ao deletar task:', error)
   }
 }
 
@@ -106,19 +164,22 @@ const handleTaskMove = async (taskId: string, newStatus: TaskStatus, oldStatus: 
   if (newStatus === oldStatus) return
   
   try {
-    const success = await tasksStore.moveTask(taskId, newStatus)
-    if (success) {
-      // Recarregar tasks
-      await tasksStore.fetchTasks()
-      syncLocalTasks()
-    }
+    // Mover (já atualiza localmente via store com atualização otimista)
+    await tasksStore.moveTask(taskId, newStatus)
+    // Não precisa recarregar - o store já atualizou localmente
+    // O watch sincroniza automaticamente
   } catch (error) {
-    // Reverter mudança local se falhar
-    syncLocalTasks()
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
-    if (errorMessage.includes('não encontrada')) {
-      toast.error('Tarefa não encontrada')
+    // O store já reverte automaticamente em caso de erro
+    if (error instanceof ApiError) {
+      if (error.isForbidden) {
+        toast.error('Você não tem permissão para mover esta tarefa')
+      } else if (error.isNotFound) {
+        toast.error('Tarefa não encontrada')
+      } else {
+        toast.error(error.message || 'Erro ao mover tarefa')
+      }
     } else {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       toast.error('Erro ao mover tarefa')
     }
     console.error('Erro ao mover task:', error)
@@ -169,7 +230,9 @@ const handleTaskMove = async (taskId: string, newStatus: TaskStatus, oldStatus: 
       :task="editingTask"
       :status="modalStatus"
       :users="usersStore.users"
+      :can-edit="editingTask ? isTaskOwner(editingTask) : true"
       @save="handleSaveTask"
+      @delete="handleDeleteTask"
     />
   </div>
 </template>

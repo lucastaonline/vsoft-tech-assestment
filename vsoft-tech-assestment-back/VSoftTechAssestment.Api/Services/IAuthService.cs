@@ -13,5 +13,10 @@ public interface IAuthService
     /// Realiza login e retorna token JWT
     /// </summary>
     Task<LoginResponse> LoginAsync(LoginRequest request);
+
+    /// <summary>
+    /// Renova o token de acesso usando o refresh token
+    /// </summary>
+    Task<LoginResponse> RefreshTokenAsync(string refreshToken);
 }
 

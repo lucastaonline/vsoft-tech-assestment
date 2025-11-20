@@ -46,6 +46,35 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
 }
 
 /**
+ * Renova o token de acesso usando o refresh token
+ * O refresh token será lido automaticamente do cookie HttpOnly pelo backend
+ * Se fornecido no parâmetro, será enviado no body (útil para clientes não-navegador)
+ */
+export async function refreshToken(refreshToken?: string): Promise<LoginResponse> {
+    // O backend lê do cookie automaticamente se não for fornecido no body
+    // Para navegadores, não precisamos enviar no body (cookie HttpOnly é mais seguro)
+    // Para clientes não-navegador, enviamos no body
+    const body = refreshToken ? { refreshToken } : undefined
+
+    const response = await client.request<LoginResponse>({
+        url: '/api/Auth/refresh',
+        method: 'POST',
+        body,
+    })
+
+    if (response.error) {
+        const error = response.error as LoginResponse
+        throw new Error(error.message || 'Erro ao renovar token')
+    }
+
+    if (!response.data) {
+        throw new Error('Resposta vazia do servidor')
+    }
+
+    return response.data as LoginResponse
+}
+
+/**
  * Realiza logout
  */
 export async function logout(): Promise<void> {

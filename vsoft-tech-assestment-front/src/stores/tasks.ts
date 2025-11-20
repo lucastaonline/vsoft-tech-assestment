@@ -177,65 +177,114 @@ export const useTasksStore = defineStore('tasks', () => {
         }
     }
 
-    // Atualizar task
-    const updateTask = async (id: string, data: UpdateTaskRequest): Promise<boolean> => {
+    // Atualizar task (com atualização otimista)
+    const updateTask = async (id: string, data: UpdateTaskRequest): Promise<TaskResponse> => {
+        const taskIndex = tasks.value.findIndex(t => t.id === id)
+        if (taskIndex === -1) {
+            throw new Error('Tarefa não encontrada')
+        }
+
+        // Salvar estado anterior para possível reversão
+        const previousTask = { ...tasks.value[taskIndex] }
+
+        // Atualização otimista: atualizar localmente primeiro
+        tasks.value[taskIndex] = {
+            ...tasks.value[taskIndex],
+            ...data,
+            id,
+            updatedAt: new Date().toISOString(),
+        }
+
         try {
-            await tasksService.updateTask(id, data)
+            // Confirmar no servidor
+            const updatedTask = await tasksService.updateTask(id, data)
 
-            // Atualizar task na lista
-            const index = tasks.value.findIndex(t => t.id === id)
-            if (index !== -1) {
-                tasks.value[index] = {
-                    ...tasks.value[index],
-                    ...data,
-                    id,
-                    updatedAt: new Date().toISOString(),
-                }
-            }
+            // Atualizar com a resposta do servidor (pode ter campos calculados)
+            tasks.value[taskIndex] = updatedTask
 
-            return true
+            return updatedTask
         } catch (error) {
+            // Reverter em caso de erro
+            tasks.value[taskIndex] = previousTask
             console.error('Erro ao atualizar task:', error)
             throw error
         }
     }
 
-    // Mover task (mudar status)
-    const moveTask = async (taskId: string, newStatus: TaskStatus): Promise<boolean> => {
-        const task = tasks.value.find(t => t.id === taskId)
-        if (!task) {
+    // Mover task (mudar status) - com atualização otimista
+    const moveTask = async (taskId: string, newStatus: TaskStatus): Promise<TaskResponse> => {
+        const taskIndex = tasks.value.findIndex(t => t.id === taskId)
+        if (taskIndex === -1) {
             throw new Error('Tarefa não encontrada')
         }
 
-        try {
-            await tasksService.moveTask(taskId, newStatus, task)
+        const task = tasks.value[taskIndex]
+        if (!task || !task.id) {
+            throw new Error('Tarefa inválida')
+        }
 
-            // Atualizar task na lista
-            const index = tasks.value.findIndex(t => t.id === taskId)
-            if (index !== -1) {
-                tasks.value[index] = {
-                    ...tasks.value[index],
-                    status: newStatus,
-                    updatedAt: new Date().toISOString(),
-                }
+        // Salvar estado anterior para possível reversão
+        const previousTask: TaskResponse = { ...task } as TaskResponse
+
+        // Atualização otimista: atualizar localmente primeiro (feedback imediato)
+        tasks.value[taskIndex] = {
+            ...task,
+            status: newStatus,
+            updatedAt: new Date().toISOString(),
+        } as TaskResponse
+
+        try {
+            // Confirmar no servidor e obter task atualizada
+            // Garantir que task tem todos os campos necessários
+            const taskForService: TaskResponse = {
+                id: task.id,
+                title: task.title || '',
+                description: task.description || '',
+                dueDate: task.dueDate || new Date().toISOString(),
+                status: task.status ?? 0,
+                userId: task.userId || '',
+                userName: task.userName,
+                createdAt: task.createdAt || new Date().toISOString(),
+                updatedAt: task.updatedAt,
             }
 
-            return true
+            const updatedTask = await tasksService.moveTask(taskId, newStatus, taskForService)
+
+            // Atualizar com a resposta do servidor (pode ter campos calculados como UpdatedAt)
+            tasks.value[taskIndex] = updatedTask
+
+            return updatedTask
         } catch (error) {
+            // Reverter em caso de erro
+            tasks.value[taskIndex] = previousTask
             console.error('Erro ao mover task:', error)
             throw error
         }
     }
 
-    // Deletar task
-    const deleteTask = async (id: string): Promise<boolean> => {
-        try {
-            await tasksService.deleteTask(id)
+    // Deletar task (com atualização otimista)
+    const deleteTask = async (id: string): Promise<void> => {
+        const taskIndex = tasks.value.findIndex(t => t.id === id)
+        if (taskIndex === -1) {
+            throw new Error('Tarefa não encontrada')
+        }
 
-            // Remover task da lista
-            tasks.value = tasks.value.filter(t => t.id !== id)
-            return true
+        // Salvar task para possível reversão
+        const deletedTask = tasks.value[taskIndex]
+        if (!deletedTask) {
+            throw new Error('Tarefa inválida')
+        }
+
+        // Atualização otimista: remover localmente primeiro
+        tasks.value = tasks.value.filter(t => t.id !== id)
+
+        try {
+            // Confirmar no servidor
+            await tasksService.deleteTask(id)
+            // Se chegou aqui, a deleção foi confirmada
         } catch (error) {
+            // Reverter em caso de erro: re-inserir a task na posição original
+            tasks.value.splice(taskIndex, 0, deletedTask as TaskResponse)
             console.error('Erro ao deletar task:', error)
             throw error
         }

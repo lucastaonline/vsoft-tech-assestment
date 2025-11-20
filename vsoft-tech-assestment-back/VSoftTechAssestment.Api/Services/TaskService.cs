@@ -23,11 +23,11 @@ public class TaskService : ITaskService
         _rabbitMQService = rabbitMQService;
     }
 
-    public async Task<IEnumerable<TaskResponse>> GetUserTasksAsync(string userId)
+    public async Task<IEnumerable<TaskResponse>> GetAllTasksAsync()
     {
         return await _context.Tasks
-            .Where(t => t.UserId == userId)
             .OrderByDescending(t => t.CreatedAt)
+            .Include(t => t.User)
             .Select(t => new TaskResponse
             {
                 Id = t.Id,
@@ -43,10 +43,9 @@ public class TaskService : ITaskService
             .ToListAsync();
     }
 
-    public async Task<PaginatedTasksResponse> GetUserTasksPaginatedAsync(string userId, Guid? cursor, int pageSize)
+    public async Task<PaginatedTasksResponse> GetAllTasksPaginatedAsync(Guid? cursor, int pageSize)
     {
         var query = _context.Tasks
-            .Where(t => t.UserId == userId)
             .OrderByDescending(t => t.CreatedAt)
             .AsQueryable();
 
@@ -94,11 +93,11 @@ public class TaskService : ITaskService
         };
     }
 
-    public async Task<TaskResponse?> GetTaskByIdAsync(Guid id, string userId)
+    public async Task<TaskResponse?> GetTaskByIdAsync(Guid id)
     {
         var task = await _context.Tasks
             .Include(t => t.User)
-            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            .FirstOrDefaultAsync(t => t.Id == id);
 
         if (task == null)
         {
@@ -154,15 +153,16 @@ public class TaskService : ITaskService
         };
     }
 
-    public async Task<bool> UpdateTaskAsync(Guid id, UpdateTaskRequest request, string authenticatedUserId, string newUserId)
+    public async Task<TaskResponse?> UpdateTaskAsync(Guid id, UpdateTaskRequest request, string authenticatedUserId, string newUserId)
     {
         // Verificar se a tarefa pertence ao usuário autenticado
         var task = await _context.Tasks
+            .Include(t => t.User)
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == authenticatedUserId);
 
         if (task == null)
         {
-            return false;
+            return null;
         }
 
         task.Title = request.Title;
@@ -182,15 +182,38 @@ public class TaskService : ITaskService
 
         await _context.SaveChangesAsync();
         
-        return true;
+        // Recarregar a task com o usuário atualizado se necessário
+        if (newUserId != authenticatedUserId)
+        {
+            await _context.Entry(task).Reference(t => t.User).LoadAsync();
+        }
+        
+        return new TaskResponse
+        {
+            Id = task.Id,
+            Title = task.Title,
+            Description = task.Description,
+            DueDate = task.DueDate,
+            Status = task.Status,
+            UserId = task.UserId,
+            UserName = task.User?.UserName,
+            CreatedAt = task.CreatedAt,
+            UpdatedAt = task.UpdatedAt
+        };
     }
 
-    public async Task<bool> DeleteTaskAsync(Guid id, string userId)
+    public async Task<bool> DeleteTaskAsync(Guid id, string authenticatedUserId)
     {
         var task = await _context.Tasks
-            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            .FirstOrDefaultAsync(t => t.Id == id);
 
         if (task == null)
+        {
+            return false;
+        }
+
+        // Verificar se o usuário autenticado é o dono da tarefa
+        if (task.UserId != authenticatedUserId)
         {
             return false;
         }

@@ -100,16 +100,101 @@ public class AuthService : IAuthService
         // Generate JWT token
         var token = GenerateJwtToken(user);
         var expirationMinutes = _configuration.GetValue<int>("Jwt:ExpirationMinutes", 60);
+        var refreshToken = GenerateRefreshToken(user);
 
         response.Success = true;
         response.Message = "Login realizado com sucesso";
         response.Token = token;
+        response.RefreshToken = refreshToken;
         response.ExpiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes);
         response.UserId = user.Id;
         response.UserName = user.UserName;
         response.Email = user.Email;
 
         return response;
+    }
+
+    public async Task<LoginResponse> RefreshTokenAsync(string refreshToken)
+    {
+        var response = new LoginResponse();
+
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            response.Success = false;
+            response.Message = "Refresh token inválido";
+            return response;
+        }
+
+        try
+        {
+            var jwtSettings = _configuration.GetSection("Jwt");
+            var secretKey = jwtSettings["Secret"] ?? throw new InvalidOperationException("JWT Secret not configured.");
+            var key = Encoding.UTF8.GetBytes(secretKey);
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                ValidateIssuer = true,
+                ValidIssuer = jwtSettings["Issuer"],
+                ValidateAudience = true,
+                ValidAudience = jwtSettings["Audience"],
+                ValidateLifetime = true, // Validar expiração do refresh token
+                ClockSkew = TimeSpan.Zero
+            };
+
+            var principal = tokenHandler.ValidateToken(refreshToken, validationParameters, out SecurityToken validatedToken);
+            
+            // Verificar se é um refresh token
+            var tokenType = principal.FindFirst("type")?.Value;
+            if (tokenType != "refresh")
+            {
+                response.Success = false;
+                response.Message = "Token inválido";
+                return response;
+            }
+
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                response.Success = false;
+                response.Message = "Refresh token inválido";
+                return response;
+            }
+
+            // Buscar usuário
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                response.Success = false;
+                response.Message = "Usuário não encontrado";
+                return response;
+            }
+
+            // Gerar novo token e novo refresh token
+            var newToken = GenerateJwtToken(user);
+            var newRefreshToken = GenerateRefreshToken(user);
+            var expirationMinutes = _configuration.GetValue<int>("Jwt:ExpirationMinutes", 60);
+
+            response.Success = true;
+            response.Message = "Token renovado com sucesso";
+            response.Token = newToken;
+            response.RefreshToken = newRefreshToken;
+            response.ExpiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes);
+            response.UserId = user.Id;
+            response.UserName = user.UserName;
+            response.Email = user.Email;
+
+            return response;
+        }
+        catch
+        {
+            response.Success = false;
+            response.Message = "Refresh token inválido ou expirado";
+            return response;
+        }
     }
 
     private string GenerateJwtToken(IdentityUser user)
@@ -135,6 +220,39 @@ public class AuthService : IAuthService
         {
             Subject = new ClaimsIdentity(claims),
             Expires = DateTime.UtcNow.AddMinutes(expirationMinutes),
+            Issuer = issuer,
+            Audience = audience,
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(key),
+                SecurityAlgorithms.HmacSha256Signature)
+        };
+
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        return tokenHandler.WriteToken(token);
+    }
+
+    private string GenerateRefreshToken(IdentityUser user)
+    {
+        var jwtSettings = _configuration.GetSection("Jwt");
+        var secretKey = jwtSettings["Secret"] ?? throw new InvalidOperationException("JWT Secret not configured.");
+        var issuer = jwtSettings["Issuer"] ?? throw new InvalidOperationException("JWT Issuer not configured.");
+        var audience = jwtSettings["Audience"] ?? throw new InvalidOperationException("JWT Audience not configured.");
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(secretKey);
+
+        // Refresh token com expiração de 30 dias e inclui userId
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim("type", "refresh")
+        };
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = DateTime.UtcNow.AddDays(30),
             Issuer = issuer,
             Audience = audience,
             SigningCredentials = new SigningCredentials(

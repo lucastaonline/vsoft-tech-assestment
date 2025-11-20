@@ -5,19 +5,19 @@ namespace VSoftTechAssestment.Api.Services;
 public interface ITaskService
 {
     /// <summary>
-    /// Obtém todas as tarefas de um usuário
+    /// Obtém todas as tarefas (de todos os usuários)
     /// </summary>
-    Task<IEnumerable<TaskResponse>> GetUserTasksAsync(string userId);
+    Task<IEnumerable<TaskResponse>> GetAllTasksAsync();
 
     /// <summary>
-    /// Obtém tarefas de um usuário com paginação baseada em cursor
+    /// Obtém todas as tarefas com paginação baseada em cursor
     /// </summary>
-    Task<PaginatedTasksResponse> GetUserTasksPaginatedAsync(string userId, Guid? cursor, int pageSize);
+    Task<PaginatedTasksResponse> GetAllTasksPaginatedAsync(Guid? cursor, int pageSize);
 
     /// <summary>
-    /// Obtém uma tarefa específica por ID (verificando se pertence ao usuário)
+    /// Obtém uma tarefa específica por ID
     /// </summary>
-    Task<TaskResponse?> GetTaskByIdAsync(Guid id, string userId);
+    Task<TaskResponse?> GetTaskByIdAsync(Guid id);
 
     /// <summary>
     /// Cria uma nova tarefa para o usuário especificado
@@ -25,13 +25,13 @@ public interface ITaskService
     Task<TaskResponse> CreateTaskAsync(CreateTaskRequest request, string userId);
 
     /// <summary>
-    /// Atualiza uma tarefa existente (verificando se pertence ao usuário autenticado)
+    /// Atualiza uma tarefa existente (apenas se o usuário autenticado for o dono)
     /// </summary>
-    Task<bool> UpdateTaskAsync(Guid id, UpdateTaskRequest request, string authenticatedUserId, string newUserId);
+    Task<TaskResponse?> UpdateTaskAsync(Guid id, UpdateTaskRequest request, string authenticatedUserId, string newUserId);
 
     /// <summary>
-    /// Exclui uma tarefa (verificando se pertence ao usuário)
+    /// Exclui uma tarefa (apenas se o usuário autenticado for o dono)
     /// </summary>
-    Task<bool> DeleteTaskAsync(Guid id, string userId);
+    Task<bool> DeleteTaskAsync(Guid id, string authenticatedUserId);
 }
 

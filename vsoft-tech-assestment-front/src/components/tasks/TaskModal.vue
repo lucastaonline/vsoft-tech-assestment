@@ -16,11 +16,13 @@ const props = defineProps<{
   task?: TaskResponse | null
   status: TaskStatus
   users?: UserListItemResponse[]
+  canEdit?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'save': [data: CreateTaskRequest | UpdateTaskRequest]
+  'delete': [taskId: string]
 }>()
 
 const authStore = useAuthStore()
@@ -105,6 +107,24 @@ const handleClose = () => {
   emit('update:open', false)
 }
 
+const handleDelete = () => {
+  if (!props.task?.id) return
+  
+  if (confirm('Tem certeza que deseja deletar esta tarefa?')) {
+    emit('delete', props.task.id)
+    handleClose()
+  }
+}
+
+// Computed para verificar se está em modo de edição e se pode editar
+const isEditMode = computed(() => !!props.task)
+const canEditFields = computed(() => {
+  // Se não há task, está criando, então pode editar
+  if (!props.task) return true
+  // Se há task, verifica a prop canEdit
+  return props.canEdit !== false
+})
+
 // Fechar ao pressionar ESC
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key === 'Escape' && props.open) {
@@ -146,6 +166,7 @@ watch(() => props.open, (isOpen) => {
               v-model="title"
               placeholder="Digite o título da tarefa"
               class="w-full"
+              :disabled="!canEditFields"
             />
           </div>
 
@@ -163,8 +184,9 @@ watch(() => props.open, (isOpen) => {
                     id="task-description"
                     v-model="description"
                     placeholder="Digite a descrição em Markdown..."
-                    class="flex-1 p-3 resize-none border-0 focus:outline-none focus:ring-0 bg-background text-sm font-mono"
+                    class="flex-1 p-3 resize-none border-0 focus:outline-none focus:ring-0 bg-background text-sm font-mono disabled:opacity-50 disabled:cursor-not-allowed"
                     rows="12"
+                    :disabled="!canEditFields"
                   />
                 </div>
                 <div class="flex flex-col border-l">
@@ -187,7 +209,8 @@ watch(() => props.open, (isOpen) => {
                 <select
                   id="task-user"
                   v-model="selectedUserId"
-                  class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :disabled="!canEditFields"
                 >
                   <option v-if="users && users.length > 0" value="">Selecione um usuário</option>
                   <option
@@ -208,6 +231,7 @@ watch(() => props.open, (isOpen) => {
                   v-model="dueDate"
                   type="date"
                   class="w-full"
+                  :disabled="!canEditFields"
                 />
               </div>
             </div>
@@ -215,13 +239,28 @@ watch(() => props.open, (isOpen) => {
         </CardContent>
 
         <!-- Footer com botões -->
-        <div class="flex items-center justify-end gap-3 p-6 border-t">
-          <Button variant="outline" @click="handleClose">
-            Cancelar
-          </Button>
-          <Button :disabled="!isValid" @click="handleSave">
-            {{ task ? 'Salvar' : 'Criar' }}
-          </Button>
+        <div class="flex items-center justify-between p-6 border-t">
+          <div>
+            <Button
+              v-if="isEditMode && canEditFields"
+              variant="destructive"
+              @click="handleDelete"
+            >
+              Deletar
+            </Button>
+          </div>
+          <div class="flex items-center gap-3">
+            <Button variant="outline" @click="handleClose">
+              {{ isEditMode && !canEditFields ? 'Fechar' : 'Cancelar' }}
+            </Button>
+            <Button
+              v-if="canEditFields"
+              :disabled="!isValid"
+              @click="handleSave"
+            >
+              {{ task ? 'Salvar' : 'Criar' }}
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
