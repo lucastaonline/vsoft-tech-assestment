@@ -28,12 +28,25 @@ WORKDIR /app
 # Install curl, bash and postgresql-client for healthchecks and migrations
 RUN apt-get update && apt-get install -y curl bash postgresql-client && rm -rf /var/lib/apt/lists/*
 
+# Install dotnet ef tool for migrations
+RUN dotnet tool install --global dotnet-ef --version 8.0.0
+ENV PATH="$PATH:/root/.dotnet/tools"
+
 # Copy published files
 COPY --from=build /app/publish .
 
 # Copy migrations and project file (needed for dotnet ef database update)
+# Também precisamos copiar os arquivos de código fonte para o dotnet ef poder compilar
 COPY --from=build /src/VSoftTechAssestment.Api/Migrations ./Migrations
 COPY --from=build /src/VSoftTechAssestment.Api/VSoftTechAssestment.Api.csproj .
+COPY --from=build /src/VSoftTechAssestment.Api/Program.cs .
+COPY --from=build /src/VSoftTechAssestment.Api/Models ./Models
+COPY --from=build /src/VSoftTechAssestment.Api/Data ./Data
+COPY --from=build /src/VSoftTechAssestment.Api/Services ./Services
+COPY --from=build /src/VSoftTechAssestment.Api/Controllers ./Controllers
+COPY --from=build /src/VSoftTechAssestment.Api/Hubs ./Hubs
+COPY --from=build /src/VSoftTechAssestment.Api/appsettings.json ./appsettings.json
+COPY --from=build /src/VSoftTechAssestment.Api/appsettings.Development.json ./appsettings.Development.json
 
 # Copy entrypoint script for automatic migrations
 COPY VSoftTechAssestment.Api/entrypoint.sh /app/entrypoint.sh

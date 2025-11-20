@@ -15,6 +15,7 @@ import {
 import { Moon, Sun, LogOut, Home, LayoutDashboard } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import NotificationBell from '@/components/NotificationBell.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -78,6 +79,9 @@ const handleLogout = async () => {
         </div>
 
         <div class="flex items-center gap-4">
+          <!-- Notificações -->
+          <NotificationBell v-if="authStore.isAuthenticated" />
+          
           <!-- Toggle de Tema -->
           <Button
             variant="ghost"

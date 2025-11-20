@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useTasksStore } from '@/stores/tasks'
 import { useUsersStore } from '@/stores/users'
 import { useAuthStore } from '@/stores/auth'
+import { useSignalR } from '@/composables/useSignalR'
 import TaskColumn from '@/components/tasks/TaskColumn.vue'
 import TaskModal from '@/components/tasks/TaskModal.vue'
 import { toast } from 'vue-sonner'
 import type { TaskStatus, CreateTaskRequest, UpdateTaskRequest, TaskResponse } from '@/lib/api/types.gen'
 import { ApiError } from '@/services/tasksService'
+import type { NotificationResponse } from '@/services/notificationsService'
 
 const tasksStore = useTasksStore()
 const usersStore = useUsersStore()
 const authStore = useAuthStore()
+const signalR = useSignalR()
 
 // Status das colunas
 const columns = [
@@ -42,6 +45,20 @@ const syncLocalTasks = () => {
   }
 }
 
+// Handler para notificações de tarefas atribuídas
+const handleTaskNotification = async (notification: NotificationResponse) => {
+  // Se a notificação tem um TaskId, buscar e atualizar a tarefa
+  if (notification.taskId) {
+    try {
+      await tasksStore.fetchAndUpdateTask(notification.taskId)
+      // syncLocalTasks será chamado automaticamente pelo watch
+    } catch (error) {
+      console.error('Erro ao atualizar tarefa da notificação:', error)
+      // Não mostrar toast de erro para não poluir a interface
+    }
+  }
+}
+
 // Carregar dados iniciais
 onMounted(async () => {
   try {
@@ -56,7 +73,31 @@ onMounted(async () => {
   } catch (error) {
     toast.error('Erro ao carregar tarefas')
   }
+
+  // Conectar ao SignalR e escutar notificações de tarefas
+  if (authStore.isAuthenticated) {
+    await signalR.connect()
+    signalR.onNotification(handleTaskNotification)
+  }
 })
+
+// Desconectar ao desmontar
+onUnmounted(async () => {
+  await signalR.disconnect()
+})
+
+// Reconectar quando autenticação mudar
+watch(
+  () => authStore.isAuthenticated,
+  async (isAuthenticated) => {
+    if (isAuthenticated) {
+      await signalR.connect()
+      signalR.onNotification(handleTaskNotification)
+    } else {
+      await signalR.disconnect()
+    }
+  }
+)
 
 // Observar mudanças na store e sincronizar
 watch(() => tasksStore.tasksByStatus, () => {

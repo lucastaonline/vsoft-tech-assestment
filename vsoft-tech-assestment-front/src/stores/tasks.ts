@@ -300,6 +300,29 @@ export const useTasksStore = defineStore('tasks', () => {
         filters.value[status] = {}
     }
 
+    // Buscar e adicionar/atualizar uma tarefa específica
+    const fetchAndUpdateTask = async (taskId: string) => {
+        try {
+            const task = await tasksService.getTaskById(taskId)
+
+            // Verificar se a tarefa já existe
+            const existingIndex = tasks.value.findIndex(t => t.id === taskId)
+
+            if (existingIndex !== -1) {
+                // Atualizar tarefa existente
+                tasks.value[existingIndex] = task
+            } else {
+                // Adicionar nova tarefa
+                tasks.value.push(task)
+            }
+
+            return task
+        } catch (error) {
+            console.error('Erro ao buscar tarefa:', error)
+            throw error
+        }
+    }
+
     return {
         // State
         tasks,
@@ -319,6 +342,7 @@ export const useTasksStore = defineStore('tasks', () => {
         deleteTask,
         setFilter,
         clearFilter,
+        fetchAndUpdateTask,
     }
 })
 

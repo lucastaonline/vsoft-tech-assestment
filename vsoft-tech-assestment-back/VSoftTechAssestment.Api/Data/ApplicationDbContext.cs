@@ -13,6 +13,7 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
     }
 
     public DbSet<Models.Entities.Task> Tasks { get; set; }
+    public DbSet<Models.Entities.Notification> Notifications { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -56,6 +57,39 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
                     v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
             entity.Property(e => e.UpdatedAt)
+                .HasConversion<DateTime?>(
+                    v => v.HasValue 
+                        ? (v.Value.Kind == DateTimeKind.Utc ? v.Value : v.Value.ToUniversalTime())
+                        : (DateTime?)null,
+                    v => v.HasValue 
+                        ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc)
+                        : (DateTime?)null);
+        });
+
+        // Configure Notification entity
+        builder.Entity<Models.Entities.Notification>(entity =>
+        {
+            entity.ToTable("Notifications");
+            
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.IsRead);
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(e => e.Message)
+                .IsRequired()
+                .HasMaxLength(500);
+
+            entity.Property(e => e.CreatedAt)
+                .HasConversion(
+                    v => v.Kind == DateTimeKind.Utc ? v : v.ToUniversalTime(),
+                    v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+            entity.Property(e => e.ReadAt)
                 .HasConversion<DateTime?>(
                     v => v.HasValue 
                         ? (v.Value.Kind == DateTimeKind.Utc ? v.Value : v.Value.ToUniversalTime())

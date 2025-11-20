@@ -1,5 +1,6 @@
 import {
     getApiTasks,
+    getApiTasksById,
     postApiTasks,
     putApiTasksById,
     deleteApiTasksById
@@ -278,6 +279,27 @@ export async function moveTask(id: string, newStatus: TaskStatus, currentTask: T
     }
 
     return updateTask(id, updateData)
+}
+
+/**
+ * Busca uma task por ID
+ */
+export async function getTaskById(id: string): Promise<TaskResponse> {
+    const response = await getApiTasksById({
+        path: {
+            id,
+        },
+    })
+
+    if (response.error) {
+        throw createApiError(response.error, response.response?.status)
+    }
+
+    if (!response.data) {
+        throw new Error('Resposta vazia do servidor')
+    }
+
+    return response.data as TaskResponse
 }
 
 /**

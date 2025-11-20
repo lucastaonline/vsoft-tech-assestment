@@ -7,6 +7,7 @@ using Microsoft.OpenApi.Models;
 using AspNetCore.Scalar;
 using VSoftTechAssestment.Api.Data;
 using VSoftTechAssestment.Api.Services;
+using VSoftTechAssestment.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,12 +61,21 @@ builder.Services.AddAuthentication(options =>
     };
 
     // Configurar para ler token do cookie se não estiver no header
+    // Também suporta SignalR via query string
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
         {
+            // Para SignalR, ler token do query string
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/notificationHub"))
+            {
+                context.Token = accessToken;
+            }
             // Se não há token no header Authorization, tentar ler do cookie
-            if (string.IsNullOrEmpty(context.Token))
+            else if (string.IsNullOrEmpty(context.Token))
             {
                 var token = context.Request.Cookies["auth_token"];
                 if (!string.IsNullOrEmpty(token))
@@ -129,6 +139,15 @@ builder.Services.AddSwaggerGen(options =>
 // Configure RabbitMQ Service
 builder.Services.AddSingleton<IRabbitMQService, RabbitMQService>();
 
+// Configure Notification Service
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// Configure SignalR
+builder.Services.AddSignalR();
+
+// Configure RabbitMQ Consumer (Background Service)
+builder.Services.AddHostedService<RabbitMQNotificationConsumer>();
+
 // Configure Application Services
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -184,6 +203,9 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
    .WithTags("Health");
 
 app.MapControllers();
+
+// Map SignalR Hub
+app.MapHub<NotificationHub>("/notificationHub");
 
 app.Run();
 
