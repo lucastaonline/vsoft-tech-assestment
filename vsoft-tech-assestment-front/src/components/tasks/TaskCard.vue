@@ -4,10 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { TaskResponse } from '@/lib/api/types.gen'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { useDateUtils } from '@/composables/useDateUtils'
 
 const props = defineProps<{
   task: TaskResponse
 }>()
+
+const { formatDate, isOverdue: checkIsOverdue } = useDateUtils()
 
 // Preview da descrição (primeiras linhas, sem markdown)
 const descriptionPreview = computed(() => {
@@ -24,21 +27,16 @@ const descriptionPreview = computed(() => {
   return text.length > 100 ? text.substring(0, 100) + '...' : text
 })
 
-// Formatar data
+// Formatar data para exibição
 const formattedDate = computed(() => {
   if (!props.task.dueDate) return ''
-  const date = new Date(props.task.dueDate)
-  return date.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
+  return formatDate(props.task.dueDate)
 })
 
 // Verificar se está vencida
 const isOverdue = computed(() => {
   if (!props.task.dueDate) return false
-  return new Date(props.task.dueDate) < new Date()
+  return checkIsOverdue(props.task.dueDate)
 })
 </script>
 

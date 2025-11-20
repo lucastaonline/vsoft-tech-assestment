@@ -8,6 +8,7 @@ import { VueDraggable } from 'vue-draggable-plus'
 import type { TaskResponse, TaskStatus } from '@/lib/api/types.gen'
 import type { UserListItemResponse } from '@/stores/users'
 import type { ColumnFilter } from './TaskFilter.vue'
+import { useDateUtils } from '@/composables/useDateUtils'
 
 const props = defineProps<{
   title: string
@@ -38,6 +39,9 @@ watch(() => props.tasks, (newTasks) => {
 const filter = ref<ColumnFilter>({})
 const columnRef = ref<HTMLElement>()
 
+// Usar composable compartilhado para manipulação de datas
+const { normalizeDate } = useDateUtils()
+
 // Função para verificar se uma task passa no filtro
 const taskPassesFilter = (task: TaskResponse): boolean => {
   if (filter.value.title) {
@@ -48,16 +52,25 @@ const taskPassesFilter = (task: TaskResponse): boolean => {
   }
 
   if (filter.value.dueDateFrom) {
-    const fromDate = new Date(filter.value.dueDateFrom)
-    if (!task.dueDate || new Date(task.dueDate) < fromDate) {
+    if (!task.dueDate) {
+      return false
+    }
+    // Usar Luxon para comparar datas corretamente
+    const fromDate = normalizeDate(filter.value.dueDateFrom)
+    const taskDate = normalizeDate(task.dueDate)
+    if (!taskDate.isValid || taskDate < fromDate) {
       return false
     }
   }
 
   if (filter.value.dueDateTo) {
-    const toDate = new Date(filter.value.dueDateTo)
-    toDate.setHours(23, 59, 59, 999)
-    if (!task.dueDate || new Date(task.dueDate) > toDate) {
+    if (!task.dueDate) {
+      return false
+    }
+    // Usar Luxon para comparar datas corretamente
+    const toDate = normalizeDate(filter.value.dueDateTo)
+    const taskDate = normalizeDate(task.dueDate)
+    if (!taskDate.isValid || taskDate > toDate) {
       return false
     }
   }

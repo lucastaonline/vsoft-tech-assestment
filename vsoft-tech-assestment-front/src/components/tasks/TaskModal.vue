@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { X } from 'lucide-vue-next'
+import { X, AlertTriangle } from 'lucide-vue-next'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { useTheme } from '@/composables/useTheme'
@@ -156,6 +156,13 @@ const canEditFields = computed(() => {
   return props.canEdit !== false
 })
 
+// Computed para verificar se está atribuindo a tarefa para outro usuário
+const isAssigningToOtherUser = computed(() => {
+  const currentUserId = authStore.user?.id
+  if (!currentUserId || !selectedUserId.value) return false
+  return selectedUserId.value !== currentUserId
+})
+
 // Fechar ao pressionar ESC
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key === 'Escape' && props.open) {
@@ -284,6 +291,16 @@ watch(() => props.open, (isOpen) => {
                     {{ user.userName || user.email }}
                   </option>
                 </select>
+                <!-- Aviso quando atribuir para outro usuário -->
+                <div
+                  v-if="isAssigningToOtherUser && canEditFields"
+                  class="flex items-start gap-2 p-3 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800"
+                >
+                  <AlertTriangle class="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                  <p class="text-sm text-yellow-800 dark:text-yellow-200">
+                    <strong>Atenção:</strong> Você está atribuindo esta tarefa para outro usuário. Após {{ isEditMode ? 'atualizar' : 'criar' }}, você não será capaz de editar ou deletar esta tarefa.
+                  </p>
+                </div>
               </div>
 
               <!-- Data de Vencimento -->
