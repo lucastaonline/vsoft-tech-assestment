@@ -41,7 +41,7 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
 
             entity.Property(e => e.Description)
                 .IsRequired()
-                .HasMaxLength(1000);
+                .HasMaxLength(1000000);
 
             // Convert DateTime to UTC automatically for PostgreSQL timestamp with time zone
             // This ensures all DateTime values are stored as UTC, regardless of their Kind

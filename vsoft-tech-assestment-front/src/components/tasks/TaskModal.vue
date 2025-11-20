@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { X } from 'lucide-vue-next'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { useTheme } from '@/composables/useTheme'
 import { useAuthStore } from '@/stores/auth'
 import type { TaskResponse, TaskStatus, CreateTaskRequest, UpdateTaskRequest } from '@/lib/api/types.gen'
 import type { UserListItemResponse } from '@/stores/users'
@@ -26,12 +27,33 @@ const emit = defineEmits<{
 }>()
 
 const authStore = useAuthStore()
+const { isDark } = useTheme()
 
 const title = ref('')
 const description = ref('')
 const dueDate = ref('')
 const selectedUserId = ref<string>('')
 const descriptionPreview = ref('')
+const descriptionMode = ref<'edit' | 'preview'>('edit')
+
+// Limite de caracteres para descrição
+const DESCRIPTION_MAX_LENGTH = 1000000
+const DESCRIPTION_WARNING_THRESHOLD = 0.9 // Mostrar contador quando atingir 90% do limite
+
+// Computed para contador de caracteres
+const descriptionLength = computed(() => description.value.length)
+const descriptionRemaining = computed(() => DESCRIPTION_MAX_LENGTH - descriptionLength.value)
+const isNearLimit = computed(() => descriptionLength.value >= DESCRIPTION_MAX_LENGTH * DESCRIPTION_WARNING_THRESHOLD)
+const isAtLimit = computed(() => descriptionLength.value >= DESCRIPTION_MAX_LENGTH)
+
+// Importar CSS do markdown dinamicamente baseado no tema
+watch(isDark, async (dark) => {
+  if (dark) {
+    await import('github-markdown-css/github-markdown-dark.css')
+  } else {
+    await import('github-markdown-css/github-markdown-light.css')
+  }
+}, { immediate: true })
 
 // Quando o modal abrir ou task mudar, preencher campos
 watch([() => props.open, () => props.task], () => {
@@ -71,6 +93,15 @@ const isValid = computed(() => {
          dueDate.value.length > 0 &&
          selectedUserId.value.length > 0
 })
+
+// Handler para limitar caracteres no textarea
+const handleDescriptionInput = (event: Event) => {
+  const target = event.target as HTMLTextAreaElement
+  if (target.value.length > DESCRIPTION_MAX_LENGTH) {
+    target.value = target.value.substring(0, DESCRIPTION_MAX_LENGTH)
+    description.value = target.value
+  }
+}
 
 const handleSave = () => {
   if (!isValid.value) return
@@ -170,39 +201,71 @@ watch(() => props.open, (isOpen) => {
             />
           </div>
 
-          <!-- Corpo: Descrição (esquerda) e Informações (direita) -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Descrição com Markdown -->
-            <div class="space-y-2">
-              <Label for="task-description">Descrição (Markdown) *</Label>
-              <div class="grid grid-cols-2 gap-2 border rounded-lg overflow-hidden">
-                <div class="flex flex-col">
-                  <div class="px-3 py-2 bg-muted text-xs font-medium border-b">
-                    Editor
+          <!-- Corpo: Descrição e Informações -->
+          <div class="flex gap-6">
+            <!-- Descrição com Markdown (75% da largura) -->
+            <div class="space-y-2 flex-[3]">
+              <div class="flex items-center justify-between">
+                <Label for="task-description">Descrição (Markdown) *</Label>
+                <div class="flex items-center gap-2">
+                  <!-- Contador de caracteres (mostra quando próximo do limite) -->
+                  <span
+                    v-if="isNearLimit"
+                    class="text-xs text-muted-foreground"
+                    :class="isAtLimit ? 'text-destructive font-semibold' : ''"
+                  >
+                    {{ descriptionLength.toLocaleString('pt-BR') }} / {{ DESCRIPTION_MAX_LENGTH.toLocaleString('pt-BR') }}
+                  </span>
+                  <div class="flex items-center gap-2 border rounded-md overflow-hidden">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      :class="descriptionMode === 'edit' ? 'bg-muted' : ''"
+                      @click="descriptionMode = 'edit'"
+                      :disabled="!canEditFields"
+                    >
+                      Edição
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      :class="descriptionMode === 'preview' ? 'bg-muted' : ''"
+                      @click="descriptionMode = 'preview'"
+                    >
+                      Preview
+                    </Button>
                   </div>
-                  <textarea
-                    id="task-description"
-                    v-model="description"
-                    placeholder="Digite a descrição em Markdown..."
-                    class="flex-1 p-3 resize-none border-0 focus:outline-none focus:ring-0 bg-background text-sm font-mono disabled:opacity-50 disabled:cursor-not-allowed"
-                    rows="12"
-                    :disabled="!canEditFields"
-                  />
                 </div>
-                <div class="flex flex-col border-l">
-                  <div class="px-3 py-2 bg-muted text-xs font-medium border-b">
-                    Preview
-                  </div>
-                  <div
-                    class="flex-1 p-3 overflow-y-auto text-sm prose prose-sm dark:prose-invert max-w-none"
-                    v-html="descriptionPreview || '<p class=&quot;text-muted-foreground&quot;>Preview aparecerá aqui...</p>'"
-                  />
-                </div>
+              </div>
+              <div class="border rounded-lg overflow-hidden">
+                <!-- Modo Edição -->
+                <textarea
+                  v-show="descriptionMode === 'edit'"
+                  id="task-description"
+                  name="task-description"
+                  v-model="description"
+                  placeholder="Digite a descrição em Markdown..."
+                  class="w-full p-3 resize-none border-0 focus:outline-none focus:ring-0 bg-background text-sm font-mono disabled:opacity-50 disabled:cursor-not-allowed min-h-[200px]"
+                  rows="12"
+                  autocomplete="off"
+                  spellcheck="true"
+                  :maxlength="DESCRIPTION_MAX_LENGTH"
+                  :disabled="!canEditFields"
+                  @input="handleDescriptionInput"
+                />
+                <!-- Modo Preview -->
+                <div
+                  v-show="descriptionMode === 'preview'"
+                  class="w-full p-3 overflow-y-auto text-sm min-h-[200px] bg-background markdown-body"
+                  v-html="descriptionPreview || '<p class=&quot;text-muted-foreground&quot;>Preview aparecerá aqui...</p>'"
+                />
               </div>
             </div>
 
-            <!-- Informações (direita) -->
-            <div class="space-y-4">
+            <!-- Informações (25% da largura) -->
+            <div class="space-y-4 flex-1">
               <!-- Responsável -->
               <div class="space-y-2">
                 <Label for="task-user">Responsável *</Label>
@@ -267,45 +330,26 @@ watch(() => props.open, (isOpen) => {
   </Teleport>
 </template>
 
-<style scoped>
-/* Estilos para o preview de markdown */
-.prose {
-  color: hsl(var(--foreground));
+<style>
+/* Usando github-markdown-css - importado dinamicamente baseado no tema via useTheme */
+
+/* Ajustes para integração com o tema */
+.markdown-body {
+  box-sizing: border-box;
+  min-width: 200px;
+  max-width: 980px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  word-wrap: break-word;
 }
 
-.prose p {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
-}
-
-.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-  margin-top: 1em;
-  margin-bottom: 0.5em;
-  font-weight: 600;
-}
-
-.prose code {
-  background: hsl(var(--muted));
-  padding: 0.125rem 0.25rem;
-  border-radius: 0.25rem;
-  font-size: 0.875em;
-}
-
-.prose pre {
-  background: hsl(var(--muted));
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  overflow-x: auto;
-}
-
-.prose ul, .prose ol {
-  margin-left: 1.5em;
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
-}
-
-.prose a {
+/* Ajustar links para usar cor do tema */
+.markdown-body :deep(a) {
   color: hsl(var(--primary));
+}
+
+.markdown-body :deep(a:hover) {
   text-decoration: underline;
 }
 </style>

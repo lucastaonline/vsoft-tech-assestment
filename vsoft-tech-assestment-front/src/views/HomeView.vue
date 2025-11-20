@@ -107,18 +107,52 @@ const handleSaveTask = async (data: CreateTaskRequest | UpdateTaskRequest) => {
     // Não precisa recarregar - o store já atualizou localmente
     // O watch sincroniza automaticamente
   } catch (error) {
+    console.error('Erro ao salvar task:', error)
+    
     if (error instanceof ApiError) {
+      // Log detalhado para debug
+      console.log('ApiError - status:', error.status)
+      console.log('ApiError - message:', error.message)
+      console.log('ApiError - isForbidden:', error.isForbidden)
+      console.log('ApiError - isNotFound:', error.isNotFound)
+      console.log('ApiError - isValidationError:', error.isValidationError)
+      console.log('ApiError - validationErrors:', error.validationErrors)
+      console.log('ApiError - originalError:', error.originalError)
+      
       if (error.isForbidden) {
         toast.error('Você não tem permissão para realizar esta ação')
       } else if (error.isNotFound) {
         toast.error('Tarefa não encontrada')
+      } else if (error.status === 400 && error.validationErrors && Object.keys(error.validationErrors).length > 0) {
+        // Exibir erros de validação específicos
+        const errorMessages: string[] = []
+        for (const [field, messages] of Object.entries(error.validationErrors)) {
+          // Formatar nome do campo: "Title" -> "Title", "DueDate" -> "Due Date"
+          const fieldName = field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1').trim()
+          messages.forEach(msg => {
+            errorMessages.push(`${fieldName}: ${msg}`)
+          })
+        }
+        if (errorMessages.length > 0) {
+          // Exibir todos os erros em um único toast com título genérico
+          toast.error('Erro de validação', {
+            description: errorMessages.join('\n')
+          })
+        } else {
+          // Se não conseguiu extrair mensagens específicas, mostrar a mensagem do erro
+          const errorMsg = error.message || 'Erro de validação'
+          toast.error(errorMsg)
+        }
       } else {
-        toast.error(error.message || (editingTask.value ? 'Erro ao atualizar tarefa' : 'Erro ao criar tarefa'))
+        // Para outros erros, sempre exibir a mensagem específica se disponível
+        const errorMsg = error.message || (editingTask.value ? 'Erro ao atualizar tarefa' : 'Erro ao criar tarefa')
+        toast.error(errorMsg)
       }
     } else {
-      toast.error(editingTask.value ? 'Erro ao atualizar tarefa' : 'Erro ao criar tarefa')
+      // Para erros não-ApiError, tentar extrair mensagem
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      toast.error(errorMsg || (editingTask.value ? 'Erro ao atualizar tarefa' : 'Erro ao criar tarefa'))
     }
-    console.error('Erro ao salvar task:', error)
   }
 }
 

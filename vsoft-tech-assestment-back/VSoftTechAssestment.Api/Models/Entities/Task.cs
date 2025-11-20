@@ -14,7 +14,7 @@ public class Task
     public string Title { get; set; } = string.Empty;
 
     [Required]
-    [MaxLength(1000)]
+    [MaxLength(1000000)]
     public string Description { get; set; } = string.Empty;
 
     [Required]

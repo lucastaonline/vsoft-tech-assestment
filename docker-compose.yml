@@ -57,6 +57,10 @@ services:
       RabbitMQ__UserName: ${RABBITMQ_USERNAME:-guest}
       RabbitMQ__Password: ${RABBITMQ_PASSWORD:-guest}
       FrontendUrl: ${FRONTEND_URL:-http://localhost:3000}
+      # Variáveis para o script de migrations
+      POSTGRES_DB: ${POSTGRES_DB:-vsoft_tech_assessment}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "8080:8080"
     depends_on:
@@ -67,6 +71,9 @@ services:
     networks:
       - vsoft-network
     restart: unless-stopped
+    # NOTA: As migrations são aplicadas automaticamente no entrypoint.sh
+    # Isso é apenas para facilitar a avaliação do teste.
+    # Em produção, migrations devem ser executadas manualmente ou via CI/CD.
 
   frontend:
     build:

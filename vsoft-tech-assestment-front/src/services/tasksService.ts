@@ -18,7 +18,8 @@ export class ApiError extends Error {
     constructor(
         message: string,
         public readonly status: number | undefined,
-        public readonly originalError?: unknown
+        public readonly originalError?: unknown,
+        public readonly validationErrors?: Record<string, string[]>
     ) {
         super(message)
         this.name = 'ApiError'
@@ -34,6 +35,10 @@ export class ApiError extends Error {
 
     get isUnauthorized(): boolean {
         return this.status === 401
+    }
+
+    get isValidationError(): boolean {
+        return this.status === 400 && !!this.validationErrors && Object.keys(this.validationErrors).length > 0
     }
 }
 
@@ -59,10 +64,15 @@ function getErrorMessage(error: unknown): string {
         return error
     }
     if (error && typeof error === 'object') {
-        const problemDetails = error as ProblemDetails & { error?: string }
+        const problemDetails = error as ProblemDetails & { error?: string; errors?: Record<string, string[]> }
         // Verificar campo 'error' primeiro (usado pelo backend para 403)
         if (problemDetails.error) {
             return problemDetails.error
+        }
+        // Se houver erros de validação, criar mensagem resumida
+        if (problemDetails.errors && Object.keys(problemDetails.errors).length > 0) {
+            const errorCount = Object.keys(problemDetails.errors).length
+            return `Erro de validação em ${errorCount} campo(s)`
         }
         // Depois verificar campos padrão do ProblemDetails
         return problemDetails.detail || problemDetails.title || 'Erro desconhecido'
@@ -70,10 +80,117 @@ function getErrorMessage(error: unknown): string {
     return 'Erro desconhecido'
 }
 
+// Função auxiliar para extrair erros de validação
+function getValidationErrors(error: unknown): Record<string, string[]> | undefined {
+    if (!error || typeof error !== 'object') {
+        return undefined
+    }
+
+    const errorObj = error as Record<string, unknown>
+    const validationErrors: Record<string, string[]> = {}
+    let hasErrors = false
+
+    // ASP.NET Core retorna ModelState como BadRequest(ModelState)
+    // O formato pode ser:
+    // 1. { "errors": { "FieldName": ["error1", "error2"] } } (ProblemDetails com errors)
+    // 2. { "FieldName": ["error1", "error2"] } (ModelState direto)
+    // 3. { "FieldName": { "Errors": [{ "ErrorMessage": "error1" }] } } (ModelStateEntry)
+
+    // Primeiro, verificar se há campo 'errors' (formato ProblemDetails)
+    if ('errors' in errorObj && errorObj.errors && typeof errorObj.errors === 'object') {
+        const errorsField = errorObj.errors as Record<string, unknown>
+        for (const [key, value] of Object.entries(errorsField)) {
+            const messages = extractErrorMessages(value)
+            if (messages.length > 0) {
+                validationErrors[key] = messages
+                hasErrors = true
+            }
+        }
+    }
+
+    // Se não encontrou no campo 'errors', verificar o objeto diretamente
+    if (!hasErrors) {
+        for (const [key, value] of Object.entries(errorObj)) {
+            // Ignorar campos padrão do ProblemDetails
+            if (['type', 'title', 'status', 'detail', 'instance', 'errors'].includes(key)) {
+                continue
+            }
+
+            const messages = extractErrorMessages(value)
+            if (messages.length > 0) {
+                validationErrors[key] = messages
+                hasErrors = true
+            }
+        }
+    }
+
+    return hasErrors ? validationErrors : undefined
+}
+
+// Função auxiliar para extrair mensagens de erro de diferentes formatos
+function extractErrorMessages(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        // Formato: ["error1", "error2"]
+        return value
+            .map(err => {
+                if (typeof err === 'string') {
+                    return err
+                }
+                if (err && typeof err === 'object') {
+                    // Formato: { ErrorMessage: "..." }
+                    return (err as any)?.ErrorMessage || (err as any)?.errorMessage || String(err)
+                }
+                return String(err)
+            })
+            .filter(msg => msg && msg.trim())
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+        // Formato: "error"
+        return [value]
+    }
+
+    if (value && typeof value === 'object') {
+        // Formato: { Errors: [{ ErrorMessage: "..." }] } (ModelStateEntry)
+        const obj = value as Record<string, unknown>
+
+        // Verificar campo Errors (array)
+        if (Array.isArray(obj.Errors)) {
+            return obj.Errors
+                .map((err: unknown) => {
+                    if (typeof err === 'string') {
+                        return err
+                    }
+                    if (err && typeof err === 'object') {
+                        return (err as any)?.ErrorMessage || (err as any)?.errorMessage || String(err)
+                    }
+                    return String(err)
+                })
+                .filter(msg => msg && msg.trim())
+        }
+
+        // Verificar se o próprio objeto tem ErrorMessage
+        if ((obj as any)?.ErrorMessage) {
+            return [(obj as any).ErrorMessage]
+        }
+    }
+
+    return []
+}
+
 // Função auxiliar para criar ApiError a partir de response.error
 function createApiError(error: unknown, status: number | undefined): ApiError {
     const message = getErrorMessage(error)
-    return new ApiError(message, status, error)
+    const validationErrors = getValidationErrors(error)
+
+    // Log para debug (remover em produção se necessário)
+    if (status === 400 && validationErrors) {
+        console.log('Erros de validação detectados:', validationErrors)
+    } else if (status === 400) {
+        console.log('Erro 400 sem erros de validação detectados. Erro completo:', error)
+    }
+
+    return new ApiError(message, status, error, validationErrors)
 }
 
 /**
