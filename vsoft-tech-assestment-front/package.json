@@ -7,6 +7,7 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
+    "prebuild": "npm run generate:api",
     "dev": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
@@ -15,8 +16,8 @@
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix --cache",
     "format": "prettier --write src/",
-    "generate:api": "openapi-ts --input http://localhost:8080/swagger/v1/swagger.json --output ./src/lib/api --client @hey-api/client-fetch",
-    "generate:api:watch": "openapi-ts --watch --input http://localhost:8080/swagger/v1/swagger.json --output ./src/lib/api --client @hey-api/client-fetch"
+    "generate:api": "openapi-ts --input ./openapi/swagger.v1.json --output ./src/lib/api --client @hey-api/client-fetch",
+    "generate:api:watch": "openapi-ts --watch --input ./openapi/swagger.v1.json --output ./src/lib/api --client @hey-api/client-fetch"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",

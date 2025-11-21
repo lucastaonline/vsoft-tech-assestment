@@ -16,7 +16,7 @@ import { defineConfig } from '@hey-api/openapi-ts'
  */
 export default defineConfig({
     client: '@hey-api/client-fetch',
-    input: process.env.API_OPENAPI_URL || 'http://localhost:8080/swagger/v1/swagger.json',
+    input: process.env.API_OPENAPI_URL || './openapi/swagger.v1.json',
     output: {
         path: './src/lib/api',
         format: 'prettier',

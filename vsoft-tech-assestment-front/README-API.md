@@ -12,7 +12,7 @@ Este projeto utiliza **geração automática de cliente TypeScript** a partir da
 
 ## Como funciona
 
-1. O backend expõe o spec OpenAPI em `/swagger/v1/swagger.json`
+1. Exportamos o spec OpenAPI do backend para `openapi/swagger.v1.json`
 2. Usamos `@hey-api/openapi-ts` para gerar o cliente TypeScript
 3. O cliente gerado fica em `src/lib/api/`
 4. Usamos o cliente gerado no código da aplicação
@@ -21,20 +21,12 @@ Este projeto utiliza **geração automática de cliente TypeScript** a partir da
 
 ### Pré-requisitos
 
-Certifique-se de que o backend está rodando:
-
-**Docker (recomendado):**
-```bash
-# O Docker expõe a API na porta 8080
-docker-compose up
-```
-
-**Desenvolvimento local:**
-```bash
-cd ../vsoft-tech-assestment-back/VSoftTechAssestment.Api
-dotnet run
-# API estará em http://localhost:5001
-```
+- Node.js 20+
+- Spec atualizado em `openapi/swagger.v1.json`.  
+  - Para atualizar, suba o backend (Docker ou `dotnet run`) e rode:
+    ```bash
+    curl http://localhost:8080/swagger/v1/swagger.json -o openapi/swagger.v1.json
+    ```
 
 ### Gerar o Cliente
 
@@ -50,15 +42,13 @@ npm run generate:api:watch
 
 ### Usar URL Customizada
 
-**Docker (porta 8080):**
+Se quiser gerar diretamente de outra URL, use:
+
 ```bash
-API_OPENAPI_URL=http://localhost:8080/swagger/v1/swagger.json npm run generate:api
+API_OPENAPI_URL=http://seu-backend/swagger/v1/swagger.json npm run generate:api
 ```
 
-**Desenvolvimento local (porta 5001):**
-```bash
-API_OPENAPI_URL=http://localhost:5001/swagger/v1/swagger.json npm run generate:api
-```
+> Isso sobrescreve o arquivo `openapi/swagger.v1.json`.
 
 ## Estrutura Gerada
 
@@ -137,8 +127,8 @@ A configuração está em `openapi.config.ts`:
 
 ```typescript
 export default defineConfig({
-  client: '@hey-api/client-fetch',  // Usa fetch nativo
-  input: 'http://localhost:8080/swagger/v1/swagger.json', // Docker: 8080, Dev: 5001
+  client: '@hey-api/client-fetch',
+  input: process.env.API_OPENAPI_URL || './openapi/swagger.v1.json',
   output: {
     path: './src/lib/api',
     format: 'prettier',
@@ -163,10 +153,8 @@ Adicione a geração do cliente no seu pipeline:
 ## Troubleshooting
 
 ### Erro: "Request failed"
-- Verifique se o backend está rodando
-- Verifique a URL do OpenAPI spec
-- **Docker**: Teste `curl http://localhost:8080/swagger/v1/swagger.json`
-- **Dev local**: Teste `curl http://localhost:5001/swagger/v1/swagger.json`
+- Verifique se o arquivo `openapi/swagger.v1.json` existe
+- Caso precise atualizar, suba o backend e refaça o `curl` para exportar o spec
 
 ### Erro: "Cannot find module '@/lib/api'"
 - Execute `npm run generate:api` primeiro

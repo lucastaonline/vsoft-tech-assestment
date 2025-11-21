@@ -42,14 +42,14 @@ Por padrão o app roda em `http://localhost:5173`.
 | `npm run preview` | Serve o build gerado |
 | `npm run lint` | ESLint com autofix e cache |
 | `npm run test:unit` | Vitest (stores, views, componentes) |
-| `npm run generate:api` | Gera/atualiza `src/lib/api` a partir do Swagger (`http://localhost:8080/swagger/v1/swagger.json`) |
+| `npm run generate:api` | Regenera `src/lib/api` usando o arquivo versionado `openapi/swagger.v1.json` |
 
-> Para apontar para outra URL durante a geração, use `API_OPENAPI_URL=http://... npm run generate:api`.
+> Para apontar para outra URL durante a geração, use `API_OPENAPI_URL=http://... npm run generate:api` (o arquivo local será sobrescrito).
 
 ## Fluxo de desenvolvimento
 
 1. **Inicie o backend** (`dotnet watch run` ou `docker compose up api rabbitmq postgres`).  
-2. **Gere o cliente OpenAPI** se houver mudanças de contrato.  
+2. **Atualize o spec local** (quando necessário) exportando `/swagger/v1/swagger.json` para `openapi/swagger.v1.json` e rode `npm run generate:api`.  
 3. **Rode `npm run dev`** e acesse `http://localhost:5173`.  
 4. Use o `Pinia Devtools` + `Vue Devtools` para inspecionar stores `auth` e `tasks`.  
 5. Para testar SignalR, faça login, crie/mova cards e observe notificações em tempo real.
