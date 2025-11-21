@@ -184,7 +184,12 @@ const handleDialogOpenChange = (val: boolean) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" class="w-48">
-                <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                <DropdownMenuLabel class="text-sm font-semibold">
+                  Integração iCal
+                </DropdownMenuLabel>
+                <DropdownMenuLabel class="text-xs text-muted-foreground font-normal">
+                  Sincronize com Outlook/Thunderbird
+                </DropdownMenuLabel>
                 <DropdownMenuItem @click="triggerScopeDialog('copy')">
                   Copiar link
                 </DropdownMenuItem>
