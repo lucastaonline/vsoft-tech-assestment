@@ -18,7 +18,7 @@ const signalR = useSignalR()
 
 // Status das colunas
 const columns = [
-  { title: 'To Do', status: 0 as TaskStatus },
+  { title: 'Pending', status: 0 as TaskStatus },
   { title: 'In Progress', status: 1 as TaskStatus },
   { title: 'Done', status: 2 as TaskStatus },
 ]

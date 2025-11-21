@@ -38,7 +38,7 @@ const availableStatuses = computed(() => {
 
 // Nomes das colunas
 const statusNames: Record<TaskStatus, string> = {
-  0: 'To Do',
+  0: 'Pending',
   1: 'In Progress',
   2: 'Done',
 }
@@ -50,7 +50,7 @@ const handleEdit = () => {
 
 const handleDelete = () => {
   if (!props.task.id) return
-  
+
   if (confirm('Tem certeza que deseja deletar esta tarefa?')) {
     emit('delete', props.task.id)
   }
@@ -73,7 +73,7 @@ const descriptionPreview = computed(() => {
     .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Links
     .replace(/`([^`]+)`/g, '$1') // Code
     .trim()
-  
+
   return text.length > 100 ? text.substring(0, 100) + '...' : text
 })
 
@@ -91,18 +91,13 @@ const isOverdue = computed(() => {
 </script>
 
 <template>
-  <Card
-    class="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow mb-3 relative"
-    :class="{ 'border-destructive': isOverdue }"
-  >
+  <Card class="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow mb-3 relative"
+    :class="{ 'border-destructive': isOverdue }">
     <!-- Menu de ações no canto superior direito -->
     <div class="absolute top-2 right-2 z-10" @click.stop>
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <button
-            class="rounded-md p-1 hover:bg-muted transition-colors"
-            @click.stop
-          >
+          <button class="rounded-md p-1 hover:bg-muted transition-colors" @click.stop>
             <MoreVertical class="h-4 w-4 text-muted-foreground" />
           </button>
         </DropdownMenuTrigger>
@@ -111,32 +106,25 @@ const isOverdue = computed(() => {
             <Edit class="mr-2 h-4 w-4" />
             Editar
           </DropdownMenuItem>
-          
+
           <DropdownMenuSeparator />
-          
+
           <DropdownMenuSub v-if="availableStatuses.length > 0">
             <DropdownMenuSubTrigger class="cursor-pointer">
               <ArrowRight class="mr-2 h-4 w-4" />
               Mover para
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem
-                v-for="status in availableStatuses"
-                :key="status"
-                @click="handleMove(status)"
-                class="cursor-pointer"
-              >
+              <DropdownMenuItem v-for="status in availableStatuses" :key="status" @click="handleMove(status)"
+                class="cursor-pointer">
                 {{ statusNames[status] }}
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          
+
           <DropdownMenuSeparator />
-          
-          <DropdownMenuItem
-            @click="handleDelete"
-            class="cursor-pointer text-destructive focus:text-destructive"
-          >
+
+          <DropdownMenuItem @click="handleDelete" class="cursor-pointer text-destructive focus:text-destructive">
             <Trash2 class="mr-2 h-4 w-4" />
             Deletar
           </DropdownMenuItem>
@@ -153,17 +141,14 @@ const isOverdue = computed(() => {
       <p v-if="descriptionPreview" class="text-sm text-muted-foreground line-clamp-2">
         {{ descriptionPreview }}
       </p>
-      
+
       <div class="flex items-center justify-between text-xs text-muted-foreground">
         <span v-if="task.userName" class="truncate">
           {{ task.userName }}
         </span>
-        <span
-          v-if="formattedDate"
-          :class="{
-            'text-destructive font-medium': isOverdue,
-          }"
-        >
+        <span v-if="formattedDate" :class="{
+          'text-destructive font-medium': isOverdue,
+        }">
           {{ formattedDate }}
         </span>
       </div>
