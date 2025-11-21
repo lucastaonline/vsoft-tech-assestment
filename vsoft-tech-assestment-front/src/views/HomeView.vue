@@ -262,7 +262,7 @@ const handleTaskMove = async (taskId: string, newStatus: TaskStatus, oldStatus: 
 
 <template>
   <div class="flex h-[calc(100vh-4rem-1rem)] flex-col overflow-hidden">
-    <div class="mb-6 shrink-0">
+    <div class="mb-6 shrink-0 space-y-2">
       <h1 class="text-3xl font-bold tracking-tight">
         Board de Tarefas
       </h1>

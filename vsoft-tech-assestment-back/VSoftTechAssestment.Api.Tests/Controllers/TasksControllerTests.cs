@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
@@ -15,11 +16,13 @@ public class TasksControllerTests
     private readonly Mock<ITaskService> _taskServiceMock;
     private readonly TasksController _controller;
     private readonly string _testUserId = "test-user-id";
+    private readonly IDataProtectionProvider _dataProtectionProvider;
 
     public TasksControllerTests()
     {
         _taskServiceMock = new Mock<ITaskService>();
-        _controller = new TasksController(_taskServiceMock.Object);
+        _dataProtectionProvider = DataProtectionProvider.Create("tasks-controller-tests");
+        _controller = new TasksController(_taskServiceMock.Object, _dataProtectionProvider);
 
         // Setup user claims
         var claims = new List<Claim>
@@ -29,12 +32,16 @@ public class TasksControllerTests
         };
         var identity = new ClaimsIdentity(claims, "TestAuth");
         var principal = new ClaimsPrincipal(identity);
+        var httpContext = new DefaultHttpContext
+        {
+            User = principal
+        };
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("tests.local");
+
         _controller.ControllerContext = new ControllerContext
         {
-            HttpContext = new DefaultHttpContext
-            {
-                User = principal
-            }
+            HttpContext = httpContext
         };
     }
 
@@ -361,6 +368,113 @@ public class TasksControllerTests
 
         // Assert
         result.Result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public void GetCalendarLink_ShouldReturnUrlAndToken()
+    {
+        // Act
+        var result = _controller.GetCalendarLink();
+
+        // Assert
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = okResult.Value.Should().BeOfType<CalendarLinkResponse>().Subject;
+        response.Token.Should().NotBeNullOrWhiteSpace();
+        response.Url.Should().StartWith("https://tests.local/api/tasks/calendar.ics?token=");
+        response.Scope.Should().Be("user");
+    }
+
+    [Fact]
+    public void GetCalendarLink_WithAllScope_ShouldReturnGlobalToken()
+    {
+        // Act
+        var result = _controller.GetCalendarLink("all");
+
+        // Assert
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = okResult.Value.Should().BeOfType<CalendarLinkResponse>().Subject;
+        response.Scope.Should().Be("all");
+    }
+
+    [Fact]
+    public async Task GetCalendarFeed_WithValidToken_ShouldReturnCalendar()
+    {
+        // Arrange
+        var linkResult = _controller.GetCalendarLink();
+        var linkResponse = (linkResult.Result as OkObjectResult)?.Value as CalendarLinkResponse;
+        linkResponse.Should().NotBeNull();
+        var token = linkResponse!.Token;
+
+        var tasks = new List<TaskResponse>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Title = "Calendar task",
+                Description = "Description",
+                DueDate = DateTime.UtcNow,
+                Status = Models.Entities.TaskStatus.Pending,
+                UserId = _testUserId
+            }
+        };
+
+        _taskServiceMock.Setup(x => x.GetTasksByUserAsync(_testUserId))
+            .ReturnsAsync(tasks);
+
+        // Act
+        var result = await _controller.GetCalendarFeed(token);
+
+        // Assert
+        var contentResult = result.Should().BeOfType<ContentResult>().Subject;
+        contentResult.ContentType.Should().StartWith("text/calendar");
+        contentResult.Content.Should().Contain("BEGIN:VCALENDAR");
+        _taskServiceMock.Verify(x => x.GetTasksByUserAsync(_testUserId), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetCalendarFeed_WithAllScopeToken_ShouldReturnGlobalCalendar()
+    {
+        // Arrange
+        var linkResult = _controller.GetCalendarLink("all");
+        var linkResponse = (linkResult.Result as OkObjectResult)?.Value as CalendarLinkResponse;
+        linkResponse.Should().NotBeNull();
+        var token = linkResponse!.Token;
+
+        var tasks = new List<TaskResponse>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Title = "Global task",
+                Description = "Description",
+                DueDate = DateTime.UtcNow,
+                Status = Models.Entities.TaskStatus.Pending,
+                UserId = _testUserId
+            }
+        };
+
+        _taskServiceMock.Setup(x => x.GetAllTasksAsync())
+            .ReturnsAsync(tasks);
+
+        // Act
+        var result = await _controller.GetCalendarFeed(token);
+
+        // Assert
+        var contentResult = result.Should().BeOfType<ContentResult>().Subject;
+        contentResult.Content.Should().Contain("X-SCOPE:ALL");
+        _taskServiceMock.Verify(x => x.GetAllTasksAsync(), Times.Once);
+        _taskServiceMock.Verify(x => x.GetTasksByUserAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetCalendarFeed_WithInvalidToken_ShouldReturnUnauthorized()
+    {
+        // Act
+        var result = await _controller.GetCalendarFeed("invalid-token");
+
+        // Assert
+        result.Should().BeOfType<UnauthorizedObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
     }
 }
 

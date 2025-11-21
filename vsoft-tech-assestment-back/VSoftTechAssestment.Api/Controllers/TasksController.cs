@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VSoftTechAssestment.Api.Models.DTOs.Task;
@@ -12,10 +14,12 @@ namespace VSoftTechAssestment.Api.Controllers;
 public class TasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
+    private readonly IDataProtector _calendarProtector;
 
-    public TasksController(ITaskService taskService)
+    public TasksController(ITaskService taskService, IDataProtectionProvider dataProtectionProvider)
     {
         _taskService = taskService;
+        _calendarProtector = dataProtectionProvider.CreateProtector("tasks-calendar-link");
     }
 
     /// <summary>
@@ -241,6 +245,149 @@ public class TasksController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Gera um token de calendário pessoal e retorna o link iCal correspondente.
+    /// </summary>
+    /// <param name="scope">Escopo do calendário: "user" (padrão) ou "all".</param>
+    /// <returns>Token protegido e URL do feed iCal.</returns>
+    [HttpGet("calendar/token")]
+    [ProducesResponseType(typeof(CalendarLinkResponse), StatusCodes.Status200OK)]
+    public ActionResult<CalendarLinkResponse> GetCalendarLink([FromQuery] string scope = "user")
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized();
+        }
+
+        var normalizedScope = string.Equals(scope, "all", StringComparison.OrdinalIgnoreCase)
+            ? "all"
+            : "user";
+        var issuedAt = DateTime.UtcNow;
+        var rawToken = $"{userId}|{normalizedScope}|{issuedAt:O}";
+        var token = _calendarProtector.Protect(rawToken);
+        var host = Request.Host.HasValue ? Request.Host.Value : "localhost";
+        var baseUrl = $"{Request.Scheme}://{host}";
+        var url = $"{baseUrl}/api/tasks/calendar.ics?token={Uri.EscapeDataString(token)}";
+
+        return Ok(new CalendarLinkResponse
+        {
+            Token = token,
+            Url = url,
+            IssuedAt = issuedAt,
+            Scope = normalizedScope
+        });
+    }
+
+    /// <summary>
+    /// Retorna o feed iCal de tarefas para o token informado.
+    /// </summary>
+    /// <param name="token">Token protegido emitido para o usuário.</param>
+    /// <returns>Arquivo ICS com os eventos das tarefas.</returns>
+    [AllowAnonymous]
+    [HttpGet("calendar.ics")]
+    [Produces("text/calendar")]
+    public async Task<IActionResult> GetCalendarFeed([FromQuery] string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return BadRequest(new { error = "Token é obrigatório." });
+        }
+
+        string payload;
+        try
+        {
+            payload = _calendarProtector.Unprotect(token);
+        }
+        catch
+        {
+            return Unauthorized(new { error = "Token inválido." });
+        }
+
+        var parts = payload.Split('|', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return Unauthorized(new { error = "Token inválido." });
+        }
+
+        var ownerUserId = parts[0];
+        var scope = parts.Length > 1 ? parts[1] : "user";
+        IEnumerable<TaskResponse> tasks;
+
+        if (string.Equals(scope, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            tasks = await _taskService.GetAllTasksAsync();
+        }
+        else
+        {
+            scope = "user";
+            tasks = await _taskService.GetTasksByUserAsync(ownerUserId);
+        }
+
+        var calendar = BuildICalendar(
+            tasks,
+            string.Equals(scope, "all", StringComparison.OrdinalIgnoreCase) ? "VSoftTech Board" : ownerUserId,
+            scope);
+
+        return Content(calendar, "text/calendar", Encoding.UTF8);
+    }
+
+    private static string BuildICalendar(IEnumerable<TaskResponse> tasks, string organizerName, string scope)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("BEGIN:VCALENDAR");
+        sb.AppendLine("VERSION:2.0");
+        sb.AppendLine("PRODID:-//VSoftTech//Tasks//PT-BR");
+        sb.AppendLine("CALSCALE:GREGORIAN");
+        sb.AppendLine("METHOD:PUBLISH");
+
+        foreach (var task in tasks)
+        {
+            sb.AppendLine("BEGIN:VEVENT");
+            sb.AppendLine($"UID:{task.Id}@vsofttech");
+
+            var referenceDate = task.DueDate != default
+                ? task.DueDate
+                : (task.CreatedAt != default ? task.CreatedAt : DateTime.UtcNow);
+            var start = referenceDate.ToUniversalTime();
+            var end = start.AddHours(1);
+
+            sb.AppendLine($"DTSTAMP:{DateTime.UtcNow:yyyyMMdd'T'HHmmss'Z'}");
+            sb.AppendLine($"DTSTART:{start:yyyyMMdd'T'HHmmss'Z'}");
+            sb.AppendLine($"DTEND:{end:yyyyMMdd'T'HHmmss'Z'}");
+            sb.AppendLine($"SUMMARY:{EscapeICalText(task.Title)}");
+
+            if (!string.IsNullOrWhiteSpace(task.Description))
+            {
+                sb.AppendLine($"DESCRIPTION:{EscapeICalText(task.Description)}");
+            }
+
+            sb.AppendLine($"CATEGORIES:{task.Status}");
+            sb.AppendLine($"STATUS:CONFIRMED");
+            sb.AppendLine($"ORGANIZER;CN={EscapeICalText(organizerName)}:MAILTO:no-reply@vsofttech.local");
+            sb.AppendLine($"X-SCOPE:{scope.ToUpperInvariant()}");
+            sb.AppendLine("END:VEVENT");
+        }
+
+        sb.AppendLine("END:VCALENDAR");
+        return sb.ToString();
+    }
+
+    private static string EscapeICalText(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Replace(@"\", @"\\")
+            .Replace(";", @"\;")
+            .Replace(",", @"\,")
+            .Replace("\r\n", @"\n")
+            .Replace("\n", @"\n");
     }
 }
 

@@ -83,6 +83,27 @@ public class TaskService : ITaskService
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<TaskResponse>> GetTasksByUserAsync(string userId)
+    {
+        return await _context.Tasks
+            .Where(t => t.UserId == userId)
+            .OrderByDescending(t => t.CreatedAt)
+            .Include(t => t.User)
+            .Select(t => new TaskResponse
+            {
+                Id = t.Id,
+                Title = t.Title,
+                Description = t.Description,
+                DueDate = t.DueDate,
+                Status = t.Status,
+                UserId = t.UserId,
+                UserName = t.User != null ? t.User.UserName : null,
+                CreatedAt = t.CreatedAt,
+                UpdatedAt = t.UpdatedAt
+            })
+            .ToListAsync();
+    }
+
     public async Task<TaskResponse?> GetTaskByIdAsync(Guid id)
     {
         var task = await _context.Tasks

@@ -1,9 +1,22 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogPortal,
+  AlertDialogOverlay,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import { X, AlertTriangle } from 'lucide-vue-next'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -88,10 +101,10 @@ const updatePreview = async () => {
 watch(description, updatePreview)
 
 const isValid = computed(() => {
-  return title.value.trim().length > 0 && 
-         description.value.trim().length > 0 && 
-         dueDate.value.length > 0 &&
-         selectedUserId.value.length > 0
+  return title.value.trim().length > 0 &&
+    description.value.trim().length > 0 &&
+    dueDate.value.length > 0 &&
+    selectedUserId.value.length > 0
 })
 
 // Handler para limitar caracteres no textarea
@@ -140,11 +153,8 @@ const handleClose = () => {
 
 const handleDelete = () => {
   if (!props.task?.id) return
-  
-  if (confirm('Tem certeza que deseja deletar esta tarefa?')) {
-    emit('delete', props.task.id)
-    handleClose()
-  }
+  emit('delete', props.task.id)
+  handleClose()
 }
 
 // Computed para verificar se está em modo de edição e se pode editar
@@ -182,11 +192,8 @@ watch(() => props.open, (isOpen) => {
 
 <template>
   <Teleport to="body">
-    <div
-      v-if="open"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      @click.self="handleClose"
-    >
+    <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      @click.self="handleClose">
       <Card class="w-full max-w-4xl max-h-[90vh] flex flex-col m-4">
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>{{ task ? 'Editar Tarefa' : 'Nova Tarefa' }}</CardTitle>
@@ -199,13 +206,8 @@ watch(() => props.open, (isOpen) => {
           <!-- Título -->
           <div class="space-y-2">
             <Label for="task-title">Título *</Label>
-            <Input
-              id="task-title"
-              v-model="title"
-              placeholder="Digite o título da tarefa"
-              class="w-full"
-              :disabled="!canEditFields"
-            />
+            <Input id="task-title" v-model="title" placeholder="Digite o título da tarefa" class="w-full"
+              :disabled="!canEditFields" />
           </div>
 
           <!-- Corpo: Descrição e Informações -->
@@ -216,31 +218,19 @@ watch(() => props.open, (isOpen) => {
                 <Label for="task-description">Descrição (Markdown) *</Label>
                 <div class="flex items-center gap-2">
                   <!-- Contador de caracteres (mostra quando próximo do limite) -->
-                  <span
-                    v-if="isNearLimit"
-                    class="text-xs text-muted-foreground"
-                    :class="isAtLimit ? 'text-destructive font-semibold' : ''"
-                  >
-                    {{ descriptionLength.toLocaleString('pt-BR') }} / {{ DESCRIPTION_MAX_LENGTH.toLocaleString('pt-BR') }}
+                  <span v-if="isNearLimit" class="text-xs text-muted-foreground"
+                    :class="isAtLimit ? 'text-destructive font-semibold' : ''">
+                    {{ descriptionLength.toLocaleString('pt-BR') }} / {{ DESCRIPTION_MAX_LENGTH.toLocaleString('pt-BR')
+                    }}
                   </span>
                   <div class="flex items-center gap-2 border rounded-md overflow-hidden">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      :class="descriptionMode === 'edit' ? 'bg-muted' : ''"
-                      @click="descriptionMode = 'edit'"
-                      :disabled="!canEditFields"
-                    >
+                    <Button type="button" variant="ghost" size="sm"
+                      :class="descriptionMode === 'edit' ? 'bg-muted' : ''" @click="descriptionMode = 'edit'"
+                      :disabled="!canEditFields">
                       Edição
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      :class="descriptionMode === 'preview' ? 'bg-muted' : ''"
-                      @click="descriptionMode = 'preview'"
-                    >
+                    <Button type="button" variant="ghost" size="sm"
+                      :class="descriptionMode === 'preview' ? 'bg-muted' : ''" @click="descriptionMode = 'preview'">
                       Preview
                     </Button>
                   </div>
@@ -248,26 +238,15 @@ watch(() => props.open, (isOpen) => {
               </div>
               <div class="border rounded-lg overflow-hidden">
                 <!-- Modo Edição -->
-                <textarea
-                  v-show="descriptionMode === 'edit'"
-                  id="task-description"
-                  name="task-description"
-                  v-model="description"
-                  placeholder="Digite a descrição em Markdown..."
+                <textarea v-show="descriptionMode === 'edit'" id="task-description" name="task-description"
+                  v-model="description" placeholder="Digite a descrição em Markdown..."
                   class="w-full p-3 resize-none border-0 focus:outline-none focus:ring-0 bg-background text-sm font-mono disabled:opacity-50 disabled:cursor-not-allowed min-h-[200px]"
-                  rows="12"
-                  autocomplete="off"
-                  spellcheck="true"
-                  :maxlength="DESCRIPTION_MAX_LENGTH"
-                  :disabled="!canEditFields"
-                  @input="handleDescriptionInput"
-                />
+                  rows="12" autocomplete="off" spellcheck="true" :maxlength="DESCRIPTION_MAX_LENGTH"
+                  :disabled="!canEditFields" @input="handleDescriptionInput" />
                 <!-- Modo Preview -->
-                <div
-                  v-show="descriptionMode === 'preview'"
+                <div v-show="descriptionMode === 'preview'"
                   class="w-full p-3 overflow-y-auto text-sm min-h-[200px] bg-background markdown-body"
-                  v-html="descriptionPreview || '<p class=&quot;text-muted-foreground&quot;>Preview aparecerá aqui...</p>'"
-                />
+                  v-html="descriptionPreview || '<p class=&quot;text-muted-foreground&quot;>Preview aparecerá aqui...</p>'" />
               </div>
             </div>
 
@@ -276,29 +255,21 @@ watch(() => props.open, (isOpen) => {
               <!-- Responsável -->
               <div class="space-y-2">
                 <Label for="task-user">Responsável *</Label>
-                <select
-                  id="task-user"
-                  v-model="selectedUserId"
+                <select id="task-user" v-model="selectedUserId"
                   class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  :disabled="!canEditFields"
-                >
+                  :disabled="!canEditFields">
                   <option v-if="users && users.length > 0" value="">Selecione um usuário</option>
-                  <option
-                    v-for="user in users"
-                    :key="user.id"
-                    :value="user.id"
-                  >
+                  <option v-for="user in users" :key="user.id" :value="user.id">
                     {{ user.userName || user.email }}
                   </option>
                 </select>
                 <!-- Aviso quando atribuir para outro usuário -->
-                <div
-                  v-if="isAssigningToOtherUser && canEditFields"
-                  class="flex items-start gap-2 p-3 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800"
-                >
+                <div v-if="isAssigningToOtherUser && canEditFields"
+                  class="flex items-start gap-2 p-3 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
                   <AlertTriangle class="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
                   <p class="text-sm text-yellow-800 dark:text-yellow-200">
-                    <strong>Atenção:</strong> Você está atribuindo esta tarefa para outro usuário. Após {{ isEditMode ? 'atualizar' : 'criar' }}, você não será capaz de editar ou deletar esta tarefa.
+                    <strong>Atenção:</strong> Você está atribuindo esta tarefa para outro usuário. Após {{ isEditMode ?
+                      'atualizar' : 'criar' }}, você não será capaz de editar ou deletar esta tarefa.
                   </p>
                 </div>
               </div>
@@ -306,13 +277,7 @@ watch(() => props.open, (isOpen) => {
               <!-- Data de Vencimento -->
               <div class="space-y-2">
                 <Label for="task-due-date">Data de Vencimento *</Label>
-                <Input
-                  id="task-due-date"
-                  v-model="dueDate"
-                  type="date"
-                  class="w-full"
-                  :disabled="!canEditFields"
-                />
+                <Input id="task-due-date" v-model="dueDate" type="date" class="w-full" :disabled="!canEditFields" />
               </div>
             </div>
           </div>
@@ -321,23 +286,36 @@ watch(() => props.open, (isOpen) => {
         <!-- Footer com botões -->
         <div class="flex items-center justify-between p-6 border-t">
           <div>
-            <Button
-              v-if="isEditMode && canEditFields"
-              variant="destructive"
-              @click="handleDelete"
-            >
-              Deletar
-            </Button>
+            <AlertDialog v-if="isEditMode && canEditFields">
+              <AlertDialogTrigger as-child>
+                <Button variant="destructive">
+                  Deletar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogPortal>
+                <AlertDialogOverlay />
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Confirma a deleção?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta ação não poderá ser desfeita e removerá definitivamente esta tarefa.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction class="bg-destructive text-white hover:bg-destructive/90" @click="handleDelete">
+                      Deletar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialogPortal>
+            </AlertDialog>
           </div>
           <div class="flex items-center gap-3">
             <Button variant="outline" @click="handleClose">
               {{ isEditMode && !canEditFields ? 'Fechar' : 'Cancelar' }}
             </Button>
-            <Button
-              v-if="canEditFields"
-              :disabled="!isValid"
-              @click="handleSave"
-            >
+            <Button v-if="canEditFields" :disabled="!isValid" @click="handleSave">
               {{ task ? 'Salvar' : 'Criar' }}
             </Button>
           </div>
@@ -370,4 +348,3 @@ watch(() => props.open, (isOpen) => {
   text-decoration: underline;
 }
 </style>
-

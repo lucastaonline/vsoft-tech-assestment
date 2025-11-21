@@ -10,6 +10,11 @@ public interface ITaskService
     Task<IEnumerable<TaskResponse>> GetAllTasksAsync();
 
     /// <summary>
+    /// Obtém todas as tarefas atribuídas a um usuário específico
+    /// </summary>
+    Task<IEnumerable<TaskResponse>> GetTasksByUserAsync(string userId);
+
+    /// <summary>
     /// Obtém uma tarefa específica por ID
     /// </summary>
     Task<TaskResponse?> GetTaskByIdAsync(Guid id);

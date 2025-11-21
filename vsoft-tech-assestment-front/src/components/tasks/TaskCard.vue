@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { MoreVertical, Edit, Trash2, ArrowRight } from 'lucide-vue-next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -12,6 +12,19 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogPortal,
+  AlertDialogOverlay,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import type { TaskResponse, TaskStatus } from '@/lib/api/types.gen'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -48,12 +61,17 @@ const handleEdit = () => {
   emit('edit', props.task)
 }
 
-const handleDelete = () => {
-  if (!props.task.id) return
+const deleteDialogOpen = ref(false)
 
-  if (confirm('Tem certeza que deseja deletar esta tarefa?')) {
-    emit('delete', props.task.id)
-  }
+const openDeleteDialog = () => {
+  if (!props.task.id) return
+  deleteDialogOpen.value = true
+}
+
+const confirmDelete = () => {
+  if (!props.task.id) return
+  deleteDialogOpen.value = false
+  emit('delete', props.task.id)
 }
 
 const handleMove = (newStatus: TaskStatus) => {
@@ -124,13 +142,33 @@ const isOverdue = computed(() => {
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem @click="handleDelete" class="cursor-pointer text-destructive focus:text-destructive">
+          <DropdownMenuItem class="cursor-pointer text-destructive focus:text-destructive" @click="openDeleteDialog">
             <Trash2 class="mr-2 h-4 w-4" />
             Deletar
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+
+    <AlertDialog v-model:open="deleteDialogOpen">
+      <AlertDialogPortal>
+        <AlertDialogOverlay />
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deseja deletar esta tarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não poderá ser desfeita. A tarefa será removida permanentemente do quadro.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction class="bg-destructive text-white hover:bg-destructive/90" @click="confirmDelete">
+              Deletar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialogPortal>
+    </AlertDialog>
 
     <CardHeader class="pb-3">
       <CardTitle class="text-base font-semibold line-clamp-2 pr-8">

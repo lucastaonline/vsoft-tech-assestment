@@ -13,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
 builder.Services.AddControllers();
+builder.Services.AddDataProtection();
 builder.Services.AddEndpointsApiExplorer();
 
 // Configure Database - prioritize environment variables
