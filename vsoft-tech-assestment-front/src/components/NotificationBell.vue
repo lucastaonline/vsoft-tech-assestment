@@ -48,7 +48,7 @@ onMounted(async () => {
   // Conectar ao SignalR se autenticado
   if (authStore.isAuthenticated) {
     await signalR.connect()
-    
+
     // Registrar handler para receber notificações em tempo real
     signalR.onNotification((notification: NotificationResponse) => {
       notificationsStore.addNotification(notification)
@@ -100,7 +100,7 @@ const handleMarkAsRead = async (notificationId: string) => {
 // Handler para marcar todas como lidas
 const handleMarkAllAsRead = async () => {
   if (notificationsStore.unreadCount === 0) return
-  
+
   try {
     await notificationsStore.markAllAsRead()
     toast.success('Todas as notificações foram marcadas como lidas')
@@ -116,75 +116,48 @@ const handleMarkAllAsRead = async () => {
     <DropdownMenuTrigger as-child>
       <Button variant="ghost" size="icon" class="relative h-9 w-9">
         <Bell class="h-4 w-4" />
-        <span
-          v-if="notificationsStore.unreadCount > 0"
-          class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs font-bold text-destructive-foreground"
-        >
-          {{ notificationsStore.unreadCount > 99 ? '99+' : notificationsStore.unreadCount }}
-        </span>
+        <span v-if="notificationsStore.unreadCount > 0"
+          class="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive" aria-hidden="true" />
         <span class="sr-only">Notificações</span>
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" class="w-80">
       <div class="flex items-center justify-between p-2">
         <h3 class="text-sm font-semibold">Notificações</h3>
-        <Button
-          v-if="notificationsStore.unreadCount > 0"
-          variant="ghost"
-          size="sm"
-          class="h-7 text-xs"
-          @click="handleMarkAllAsRead"
-        >
+        <Button v-if="notificationsStore.unreadCount > 0" variant="ghost" size="sm" class="h-7 text-xs"
+          @click="handleMarkAllAsRead">
           <CheckCheck class="mr-1 h-3 w-3" />
           Marcar todas como lidas
         </Button>
       </div>
-      
+
       <DropdownMenuSeparator />
-      
+
       <div class="max-h-96 overflow-y-auto">
-        <div
-          v-if="notificationsStore.loading"
-          class="p-4 text-center text-sm text-muted-foreground"
-        >
+        <div v-if="notificationsStore.loading" class="p-4 text-center text-sm text-muted-foreground">
           Carregando...
         </div>
-        
-        <div
-          v-else-if="notificationsStore.notifications.length === 0"
-          class="p-4 text-center text-sm text-muted-foreground"
-        >
+
+        <div v-else-if="notificationsStore.notifications.length === 0"
+          class="p-4 text-center text-sm text-muted-foreground">
           Nenhuma notificação
         </div>
-        
+
         <template v-else>
-          <DropdownMenuItem
-            v-for="notification in notificationsStore.sortedNotifications"
-            :key="notification.id"
+          <DropdownMenuItem v-for="notification in notificationsStore.sortedNotifications" :key="notification.id"
             :class="{
               'bg-accent': !notification.isRead,
               'cursor-pointer': true,
-            }"
-            @click="handleMarkAsRead(notification.id)"
-          >
+            }" @click="handleMarkAsRead(notification.id)">
             <div class="flex w-full flex-col gap-1">
               <div class="flex items-start justify-between gap-2">
-                <p
-                  class="text-sm"
-                  :class="{
-                    'font-medium': !notification.isRead,
-                  }"
-                >
+                <p class="text-sm" :class="{
+                  'font-medium': !notification.isRead,
+                }">
                   {{ notification.message }}
                 </p>
-                <Check
-                  v-if="notification.isRead"
-                  class="h-3 w-3 shrink-0 text-muted-foreground"
-                />
-                <div
-                  v-else
-                  class="h-2 w-2 shrink-0 rounded-full bg-primary"
-                />
+                <Check v-if="notification.isRead" class="h-3 w-3 shrink-0 text-muted-foreground" />
+                <div v-else class="h-2 w-2 shrink-0 rounded-full bg-primary" />
               </div>
               <p class="text-xs text-muted-foreground">
                 {{ formatRelativeTime(notification.createdAt) }}
@@ -196,4 +169,3 @@ const handleMarkAllAsRead = async () => {
     </DropdownMenuContent>
   </DropdownMenu>
 </template>
-

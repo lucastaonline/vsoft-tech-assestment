@@ -8,27 +8,11 @@ import type {
     UpdateTaskRequest
 } from '@/lib/api/types.gen'
 import type { ColumnFilter } from '@/components/tasks/TaskFilter.vue'
-import type { PaginatedTasksResponse } from '@/services/tasksService'
-
-interface PaginationState {
-    cursor: string | null
-    hasMore: boolean
-    loading: boolean
-}
 
 export const useTasksStore = defineStore('tasks', () => {
-    // Estado
     const tasks = ref<TaskResponse[]>([])
     const loading = ref(false)
 
-    // Paginação por status
-    const pagination = ref<Record<TaskStatus, PaginationState>>({
-        0: { cursor: null, hasMore: false, loading: false }, // Pending
-        1: { cursor: null, hasMore: false, loading: false }, // InProgress
-        2: { cursor: null, hasMore: false, loading: false }, // Completed
-    })
-
-    // Filtros por coluna
     const filters = ref<Record<TaskStatus, ColumnFilter>>({
         0: {},
         1: {},
@@ -53,115 +37,16 @@ export const useTasksStore = defineStore('tasks', () => {
     })
 
 
-    // Carregar tasks com paginação
-    const fetchTasks = async (status?: TaskStatus, reset = false) => {
+    const fetchTasks = async () => {
         loading.value = true
-
         try {
-            // Se reset, limpar tasks do status
-            if (reset && status !== undefined) {
-                tasks.value = tasks.value.filter(t => t.status !== status)
-                pagination.value[status] = { cursor: null, hasMore: false, loading: false }
-            }
-
-            // Construir parâmetros para paginação
-            const params: tasksService.ListTasksParams = {
-                pageSize: 20,
-            }
-
-            if (status !== undefined && !reset && pagination.value[status].cursor) {
-                params.cursor = pagination.value[status].cursor
-            }
-
-            const data = await tasksService.listTasks(params)
-
-            // Quando há parâmetros de paginação, a API sempre retorna formato paginado
-            // Quando não há parâmetros, pode retornar lista simples (compatibilidade)
-            if (Array.isArray(data) && !params.cursor && !params.pageSize) {
-                // Lista simples (sem parâmetros de paginação)
-                if (reset || status === undefined) {
-                    tasks.value = data
-                } else {
-                    // Adicionar tasks do status específico
-                    const statusTasks = data.filter(t => t.status === status)
-                    tasks.value = [
-                        ...tasks.value.filter(t => t.status !== status),
-                        ...statusTasks,
-                    ]
-                }
-            } else {
-                // Resposta paginada (quando há parâmetros ou formato paginado)
-                const paginatedData = Array.isArray(data)
-                    ? { tasks: data, nextCursor: null, hasMore: false }
-                    : (data as PaginatedTasksResponse)
-
-                if (status !== undefined) {
-                    const statusTasks = paginatedData.tasks.filter(t => t.status === status)
-                    tasks.value = [
-                        ...tasks.value.filter(t => t.status !== status),
-                        ...statusTasks,
-                    ]
-
-                    pagination.value[status] = {
-                        cursor: paginatedData.nextCursor || null,
-                        hasMore: paginatedData.hasMore || false,
-                        loading: false,
-                    }
-                } else {
-                    // Sem filtro de status, adicionar todas
-                    if (reset) {
-                        tasks.value = paginatedData.tasks
-                    } else {
-                        // Evitar duplicatas
-                        const existingIds = new Set(tasks.value.map(t => t.id))
-                        const newTasks = paginatedData.tasks.filter(t => t.id && !existingIds.has(t.id))
-                        tasks.value = [...tasks.value, ...newTasks]
-                    }
-                }
-            }
+            const data = await tasksService.listTasks()
+            tasks.value = data
         } catch (error) {
             console.error('Erro ao carregar tasks:', error)
             throw error
         } finally {
             loading.value = false
-        }
-    }
-
-    // Carregar mais tasks para um status (paginação)
-    const loadMoreTasks = async (status: TaskStatus) => {
-        const statusPagination = pagination.value[status]
-
-        if (!statusPagination.hasMore || statusPagination.loading) {
-            return
-        }
-
-        statusPagination.loading = true
-
-        try {
-            const params: tasksService.ListTasksParams = {
-                cursor: statusPagination.cursor || undefined,
-                pageSize: 20,
-            }
-
-            const data = await tasksService.listTasks(params)
-
-            // Quando há parâmetros de paginação, a API sempre retorna formato paginado
-            const paginatedData = Array.isArray(data)
-                ? { tasks: data, nextCursor: null, hasMore: false }
-                : (data as PaginatedTasksResponse)
-
-            const statusTasks = paginatedData.tasks.filter(t => t.status === status)
-            const existingIds = new Set(tasks.value.map(t => t.id))
-            const newTasks = statusTasks.filter(t => t.id && !existingIds.has(t.id))
-            tasks.value = [...tasks.value, ...newTasks]
-
-            statusPagination.cursor = paginatedData.nextCursor || null
-            statusPagination.hasMore = paginatedData.hasMore || false
-        } catch (error) {
-            console.error('Erro ao carregar mais tasks:', error)
-            throw error
-        } finally {
-            statusPagination.loading = false
         }
     }
 
@@ -327,7 +212,6 @@ export const useTasksStore = defineStore('tasks', () => {
         // State
         tasks,
         loading,
-        pagination,
         filters,
 
         // Computed
@@ -335,7 +219,6 @@ export const useTasksStore = defineStore('tasks', () => {
 
         // Actions
         fetchTasks,
-        loadMoreTasks,
         createTask,
         updateTask,
         moveTask,

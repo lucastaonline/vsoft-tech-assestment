@@ -38,7 +38,7 @@ docker compose up -d --build
 
 Mais detalhes e comandos úteis estão em `README-DOCKER.md`.
 
-## Execução local (des acoplado do Docker)
+## Execução local (desacoplado do Docker)
 
 ### Backend
 

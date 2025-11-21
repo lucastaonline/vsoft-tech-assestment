@@ -10,11 +10,6 @@ public interface ITaskService
     Task<IEnumerable<TaskResponse>> GetAllTasksAsync();
 
     /// <summary>
-    /// Obtém todas as tarefas com paginação baseada em cursor
-    /// </summary>
-    Task<PaginatedTasksResponse> GetAllTasksPaginatedAsync(Guid? cursor, int pageSize);
-
-    /// <summary>
     /// Obtém uma tarefa específica por ID
     /// </summary>
     Task<TaskResponse?> GetTaskByIdAsync(Guid id);
@@ -33,5 +28,10 @@ public interface ITaskService
     /// Exclui uma tarefa (apenas se o usuário autenticado for o dono)
     /// </summary>
     Task<bool> DeleteTaskAsync(Guid id, string authenticatedUserId);
+
+    /// <summary>
+    /// Gera tarefas mockadas para usuários existentes
+    /// </summary>
+    Task<IReadOnlyList<TaskResponse>> CreateMockTasksAsync(int amount);
 }
 

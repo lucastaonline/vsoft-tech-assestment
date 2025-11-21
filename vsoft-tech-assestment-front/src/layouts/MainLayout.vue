@@ -21,6 +21,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const { isDark, toggleTheme } = useTheme()
+const isHome = computed(() => route.name === 'home')
 
 const userInitials = computed(() => {
   if (authStore.user?.userName) {
@@ -41,8 +42,9 @@ const handleLogout = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen w-full bg-background">
-    <header class="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+  <div class="flex min-h-screen w-full flex-col bg-background">
+    <header
+      class="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div class="container mx-auto flex h-16 items-center justify-between px-4">
         <div class="flex items-center gap-6">
           <router-link to="/" class="flex items-center space-x-2">
@@ -50,28 +52,18 @@ const handleLogout = async () => {
               VSoft
             </span>
           </router-link>
-          
+
           <!-- Navegação -->
           <nav class="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              :class="{
-                'bg-accent': route.name === 'home',
-              }"
-              @click="router.push('/')"
-            >
+            <Button variant="ghost" size="sm" :class="{
+              'bg-accent': route.name === 'home',
+            }" @click="router.push('/')">
               <Home class="mr-2 h-4 w-4" />
               Home
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              :class="{
-                'bg-accent': route.name === 'dashboard',
-              }"
-              @click="router.push('/dashboard')"
-            >
+            <Button variant="ghost" size="sm" :class="{
+              'bg-accent': route.name === 'dashboard',
+            }" @click="router.push('/dashboard')">
               <LayoutDashboard class="mr-2 h-4 w-4" />
               Dashboard
             </Button>
@@ -81,14 +73,9 @@ const handleLogout = async () => {
         <div class="flex items-center gap-4">
           <!-- Notificações -->
           <NotificationBell v-if="authStore.isAuthenticated" />
-          
+
           <!-- Toggle de Tema -->
-          <Button
-            variant="ghost"
-            size="icon"
-            @click="toggleTheme"
-            class="h-9 w-9"
-          >
+          <Button variant="ghost" size="icon" @click="toggleTheme" class="h-9 w-9">
             <Sun v-if="isDark" class="h-4 w-4" />
             <Moon v-else class="h-4 w-4" />
             <span class="sr-only">Alternar tema</span>
@@ -126,9 +113,10 @@ const handleLogout = async () => {
       </div>
     </header>
 
-    <main class="container mx-auto px-4 py-8">
-      <router-view />
+    <main class="flex-1 overflow-hidden">
+      <div :class="['container mx-auto px-4 h-full', isHome ? 'py-0' : 'py-8']">
+        <router-view />
+      </div>
     </main>
   </div>
 </template>
-

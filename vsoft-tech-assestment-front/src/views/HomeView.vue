@@ -74,14 +74,12 @@ onMounted(async () => {
     toast.error('Erro ao carregar tarefas')
   }
 
-  // Conectar ao SignalR e escutar notificações de tarefas
   if (authStore.isAuthenticated) {
     await signalR.connect()
     signalR.onNotification(handleTaskNotification)
   }
 })
 
-// Desconectar ao desmontar
 onUnmounted(async () => {
   await signalR.disconnect()
 })
@@ -144,12 +142,12 @@ const handleSaveTask = async (data: CreateTaskRequest | UpdateTaskRequest) => {
       await tasksStore.createTask(data as CreateTaskRequest)
       toast.success('Tarefa criada com sucesso!')
     }
-    
+
     // Não precisa recarregar - o store já atualizou localmente
     // O watch sincroniza automaticamente
   } catch (error) {
     console.error('Erro ao salvar task:', error)
-    
+
     if (error instanceof ApiError) {
       // Log detalhado para debug
       console.log('ApiError - status:', error.status)
@@ -159,7 +157,7 @@ const handleSaveTask = async (data: CreateTaskRequest | UpdateTaskRequest) => {
       console.log('ApiError - isValidationError:', error.isValidationError)
       console.log('ApiError - validationErrors:', error.validationErrors)
       console.log('ApiError - originalError:', error.originalError)
-      
+
       if (error.isForbidden) {
         toast.error('Você não tem permissão para realizar esta ação')
       } else if (error.isNotFound) {
@@ -215,7 +213,7 @@ const handleDeleteTask = async (taskId: string) => {
     // Deletar (já remove localmente via store com atualização otimista)
     await tasksStore.deleteTask(taskId)
     toast.success('Tarefa deletada com sucesso!')
-    
+
     // Não precisa recarregar - o store já removeu localmente
     // O watch sincroniza automaticamente
   } catch (error) {
@@ -237,7 +235,7 @@ const handleDeleteTask = async (taskId: string) => {
 // Quando um card é movido entre colunas
 const handleTaskMove = async (taskId: string, newStatus: TaskStatus, oldStatus: TaskStatus) => {
   if (newStatus === oldStatus) return
-  
+
   try {
     // Mover (já atualiza localmente via store com atualização otimista)
     await tasksStore.moveTask(taskId, newStatus)
@@ -263,9 +261,8 @@ const handleTaskMove = async (taskId: string, newStatus: TaskStatus, oldStatus: 
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
-    <!-- Header -->
-    <div class="mb-6">
+  <div class="flex h-[calc(100vh-4rem-1rem)] flex-col overflow-hidden">
+    <div class="mb-6 shrink-0">
       <h1 class="text-3xl font-bold tracking-tight">
         Board de Tarefas
       </h1>
@@ -274,63 +271,24 @@ const handleTaskMove = async (taskId: string, newStatus: TaskStatus, oldStatus: 
       </p>
     </div>
 
-    <!-- Board com colunas -->
-    <div class="flex-1 overflow-x-auto pb-4">
-      <div class="flex gap-4 min-w-max h-full">
-        <div
-          v-for="column in columns"
-          :key="column.status"
-          :data-column-status="column.status"
-          class="flex flex-col h-full min-w-[320px] max-w-[320px]"
-        >
-          <TaskColumn
-            :title="column.title"
-            :status="column.status"
-            :tasks="localTasks[column.status]"
-            :users="usersStore.users"
-            :loading="tasksStore.loading"
-            @add-task="handleAddTask(column.status)"
-            @filter="(filter) => tasksStore.setFilter(column.status, filter)"
-            @clear-filter="() => tasksStore.clearFilter(column.status)"
-            @task-click="handleEditTask"
-            @task-move="handleTaskMove"
-            @task-edit="handleEditTask"
-            @task-delete="handleDeleteTask"
-          />
+    <div class="flex-1 min-h-0 overflow-hidden">
+      <div class="h-full min-h-0 overflow-x-auto overflow-y-hidden px-3 pb-4">
+        <div class="flex h-full min-h-0 gap-4 min-w-max">
+          <div v-for="column in columns" :key="column.status" :data-column-status="column.status"
+            class="flex h-full min-h-0 max-h-full flex-col min-w-[320px] max-w-[320px]">
+            <TaskColumn :title="column.title" :status="column.status" :tasks="localTasks[column.status]"
+              :users="usersStore.users" :loading="tasksStore.loading" @add-task="handleAddTask(column.status)"
+              @filter="(filter) => tasksStore.setFilter(column.status, filter)"
+              @clear-filter="() => tasksStore.clearFilter(column.status)" @task-click="handleEditTask"
+              @task-move="handleTaskMove" @task-edit="handleEditTask" @task-delete="handleDeleteTask" />
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Modal de Task -->
-    <TaskModal
-      v-model:open="modalOpen"
-      :task="editingTask"
-      :status="modalStatus"
-      :users="usersStore.users"
-      :can-edit="editingTask ? isTaskOwner(editingTask) : true"
-      @save="handleSaveTask"
-      @delete="handleDeleteTask"
-    />
+    <TaskModal v-model:open="modalOpen" :task="editingTask" :status="modalStatus" :users="usersStore.users"
+      :can-edit="editingTask ? isTaskOwner(editingTask) : true" @save="handleSaveTask" @delete="handleDeleteTask" />
   </div>
 </template>
 
-<style scoped>
-/* Scroll horizontal customizado */
-.overflow-x-auto::-webkit-scrollbar {
-  height: 8px;
-}
-
-.overflow-x-auto::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
-  border-radius: 4px;
-}
-
-.overflow-x-auto::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 4px;
-}
-
-.overflow-x-auto::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
-}
-</style>
+<style scoped></style>

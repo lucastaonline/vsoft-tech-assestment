@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, provide } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-vue-next'
 import TaskCard from './TaskCard.vue'
@@ -9,6 +9,8 @@ import type { TaskResponse, TaskStatus } from '@/lib/api/types.gen'
 import type { UserListItemResponse } from '@/stores/users'
 import type { ColumnFilter } from './TaskFilter.vue'
 import { useDateUtils } from '@/composables/useDateUtils'
+import VirtualTaskCard from './VirtualTaskCard.vue'
+import { taskColumnRootKey } from './tokens'
 
 const props = defineProps<{
   title: string
@@ -22,7 +24,6 @@ const emit = defineEmits<{
   'add-task': []
   'filter': [filter: ColumnFilter]
   'clear-filter': []
-  'scroll': [event: Event, status: TaskStatus]
   'task-click': [task: TaskResponse]
   'task-move': [taskId: string, newStatus: TaskStatus, oldStatus: TaskStatus]
   'task-edit': [task: TaskResponse]
@@ -35,11 +36,11 @@ const localTasks = ref<TaskResponse[]>([...props.tasks])
 // Sincronizar localTasks quando props.tasks mudar
 watch(() => props.tasks, (newTasks) => {
   localTasks.value = [...newTasks]
-  console.log(`[TaskColumn ${props.status}] Tasks atualizadas:`, localTasks.value.length, localTasks.value.map(t => ({ id: t.id, title: t.title })))
 }, { deep: true, immediate: true })
 
 const filter = ref<ColumnFilter>({})
-const columnRef = ref<HTMLElement>()
+const columnRef = ref<HTMLElement | null>(null)
+provide(taskColumnRootKey, columnRef)
 
 // Usar composable compartilhado para manipulação de datas
 const { normalizeDate } = useDateUtils()
@@ -92,25 +93,25 @@ const filteredTasks = computed(() => {
 const handleDragEnd = async (evt: any) => {
   try {
     const { item, to, from } = evt
-    
+
     if (!to || !from) return
-    
+
     // Encontrar colunas de origem e destino
     const fromColumn = from.closest('[data-column-status]')
     const toColumn = to.closest('[data-column-status]')
-    
+
     if (!fromColumn || !toColumn) return
-    
+
     const fromStatus = parseInt(fromColumn.dataset.columnStatus || '0') as TaskStatus
     const toStatus = parseInt(toColumn.dataset.columnStatus || '0') as TaskStatus
-    
+
     // Se não mudou de coluna, não fazer nada
     if (fromStatus === toStatus) return
-    
+
     // Encontrar task pelo elemento
     const taskElement = item.querySelector('[data-task-id]') || item
     const taskId = taskElement.dataset?.taskId || taskElement.getAttribute('data-task-id')
-    
+
     if (!taskId) {
       // Tentar encontrar pela estrutura do vue-draggable
       const context = (item as any).__draggable_context__
@@ -119,7 +120,7 @@ const handleDragEnd = async (evt: any) => {
       }
       return
     }
-    
+
     // Emitir evento de mudança de coluna
     emit('task-move', taskId, toStatus, fromStatus)
   } catch (error) {
@@ -136,53 +137,32 @@ const handleClearFilter = () => {
   filter.value = {}
   emit('clear-filter')
 }
+
 </script>
 
 <template>
-  <div class="flex flex-col h-full min-w-[320px] max-w-[320px] bg-muted/30 rounded-lg border border-border/50">
+  <div
+    class="flex h-full min-h-0 max-h-full w-full flex-col overflow-hidden bg-muted/30 rounded-lg border border-border/50">
     <!-- Header -->
     <div class="flex items-center justify-between p-4 border-b border-border/50">
       <h3 class="font-semibold text-sm">{{ title }}</h3>
       <div class="flex items-center gap-2">
-        <TaskFilter
-          :status="status"
-          :users="users"
-          @filter="handleFilter"
-          @clear="handleClearFilter"
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          class="h-8 w-8"
-          @click="emit('add-task')"
-        >
+        <TaskFilter :status="status" :users="users" @filter="handleFilter" @clear="handleClearFilter" />
+        <Button variant="ghost" size="icon" class="h-8 w-8" @click="emit('add-task')">
           <Plus class="h-4 w-4" />
         </Button>
       </div>
     </div>
 
     <!-- Tasks Container with Scroll -->
-    <div
-      ref="columnRef"
-      :data-column-status="status"
-      class="flex-1 overflow-y-auto p-4"
-      style="max-height: calc(100vh - 200px);"
-      @scroll="(e) => emit('scroll', e, status)"
-    >
+    <div ref="columnRef" :data-column-status="status" class="flex-1 overflow-y-auto p-4" style="min-height: 0;">
       <div v-if="loading && localTasks.length === 0" class="text-center text-sm text-muted-foreground py-8">
         Carregando...
       </div>
-      
-      <VueDraggable
-        v-else
-        :key="`draggable-${props.status}-${localTasks.length}`"
-        v-model="localTasks"
-        :group="{ name: 'tasks', pull: true, put: true }"
-        :animation="200"
-        handle=".cursor-grab"
-        class="space-y-3"
-        @end="handleDragEnd"
-      >
+
+      <VueDraggable v-else :key="`draggable-${props.status}-${localTasks.length}`" v-model="localTasks"
+        :group="{ name: 'tasks', pull: true, put: true }" :animation="200" handle=".cursor-grab" class="space-y-3"
+        @end="handleDragEnd">
         <template v-if="localTasks.length === 0">
           <div class="text-center text-sm text-muted-foreground py-8">
             <p>Nenhuma tarefa</p>
@@ -190,20 +170,11 @@ const handleClearFilter = () => {
         </template>
         <template v-else-if="filteredTasks.length === 0">
           <!-- Tasks escondidas para manter no DOM para drag and drop -->
-          <div
-            v-for="task in localTasks"
-            :key="task.id || `temp-${task.title}`"
-            :data-task-id="task.id"
-            :data-task-status="task.status"
-            class="hidden"
-          >
-            <TaskCard
-              :task="task"
-              :current-status="props.status"
-              @edit="emit('task-edit', $event)"
+          <div v-for="task in localTasks" :key="task.id || `temp-${task.title}`" :data-task-id="task.id"
+            :data-task-status="task.status" class="hidden">
+            <TaskCard :task="task" :current-status="props.status" @edit="emit('task-edit', $event)"
               @delete="emit('task-delete', $event)"
-              @move="(taskId, newStatus) => emit('task-move', taskId, newStatus, props.status)"
-            />
+              @move="(taskId, newStatus) => emit('task-move', taskId, newStatus, props.status)" />
           </div>
           <div class="text-center text-sm text-muted-foreground py-8 mt-4">
             <p>Nenhuma tarefa corresponde aos filtros</p>
@@ -211,24 +182,16 @@ const handleClearFilter = () => {
         </template>
         <template v-else>
           <template v-for="task in localTasks" :key="task.id || `temp-${task.title}`">
-            <div
-              v-if="taskPassesFilter(task)"
-              :data-task-id="task.id"
-              :data-task-status="task.status"
-              @click="emit('task-click', task)"
-              class="cursor-pointer"
-            >
-              <TaskCard
-                :task="task"
-                :current-status="props.status"
-                @edit="emit('task-edit', $event)"
-                @delete="emit('task-delete', $event)"
-                @move="(taskId, newStatus) => emit('task-move', taskId, newStatus, props.status)"
-              />
-            </div>
+            <VirtualTaskCard v-if="taskPassesFilter(task)" :task="task" :status="props.status" :estimated-height="200"
+              @task-click="emit('task-click', $event)" @task-edit="emit('task-edit', $event)"
+              @task-delete="emit('task-delete', $event)"
+              @task-move="(taskId, newStatus, oldStatus) => emit('task-move', taskId, newStatus, oldStatus)" />
           </template>
         </template>
       </VueDraggable>
+      <div v-if="loading && localTasks.length > 0" class="py-2 text-center text-xs text-muted-foreground">
+        Atualizando tarefas...
+      </div>
     </div>
   </div>
 </template>
@@ -252,4 +215,3 @@ const handleClearFilter = () => {
   background: hsl(var(--muted-foreground) / 0.5);
 }
 </style>
-

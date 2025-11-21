@@ -75,7 +75,7 @@ describe('useTasksStore', () => {
         const result = await store.updateTask('task-1', updateRequest)
 
         expect(result.title).toBe('Task Atualizada')
-        expect(store.tasks[0].status).toBe(1)
+        expect(store.tasks[0]!.status).toBe(1)
         expect(tasksService.updateTask).toHaveBeenCalledWith('task-1', updateRequest)
     })
 
@@ -93,12 +93,23 @@ describe('useTasksStore', () => {
         const result = await store.moveTask('task-1', 2)
 
         expect(result.status).toBe(2)
-        expect(store.tasks[0].status).toBe(2)
+        expect(store.tasks[0]!.status).toBe(2)
         expect(tasksService.moveTask).toHaveBeenCalledWith(
             'task-1',
             2,
             expect.objectContaining({ id: 'task-1' })
         )
+    })
+
+    it('carrega todas as tasks com fetchTasks', async () => {
+        const store = useTasksStore()
+        vi.mocked(tasksService.listTasks).mockResolvedValue([{ ...baseTask }])
+
+        await store.fetchTasks()
+
+        expect(tasksService.listTasks).toHaveBeenCalledTimes(1)
+        expect(store.tasks).toHaveLength(1)
+        expect(store.tasksByStatus[0]).toHaveLength(1)
     })
 })
 

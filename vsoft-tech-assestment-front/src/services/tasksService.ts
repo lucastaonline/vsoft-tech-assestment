@@ -43,22 +43,6 @@ export class ApiError extends Error {
     }
 }
 
-// Tipo para resposta paginada
-export interface PaginatedTasksResponse {
-    tasks: TaskResponse[]
-    nextCursor: string | null
-    hasMore: boolean
-}
-
-// Tipo para resposta da API (pode ser lista simples ou paginada)
-type TasksApiResponse = TaskResponse[] | PaginatedTasksResponse
-
-// Parâmetros para listar tasks
-export interface ListTasksParams {
-    cursor?: string | null
-    pageSize?: number
-}
-
 // Função auxiliar para extrair mensagem de erro
 function getErrorMessage(error: unknown): string {
     if (typeof error === 'string') {
@@ -194,23 +178,8 @@ function createApiError(error: unknown, status: number | undefined): ApiError {
     return new ApiError(message, status, error, validationErrors)
 }
 
-/**
- * Lista tasks com suporte a paginação
- */
-export async function listTasks(params?: ListTasksParams): Promise<TasksApiResponse> {
-    const queryParams: Record<string, string> = {}
-
-    if (params?.cursor) {
-        queryParams.cursor = params.cursor
-    }
-
-    if (params?.pageSize) {
-        queryParams.pageSize = params.pageSize.toString()
-    }
-
-    const response = await getApiTasks({
-        query: queryParams as any,
-    })
+export async function listTasks(): Promise<TaskResponse[]> {
+    const response = await getApiTasks({})
 
     if (response.error) {
         throw createApiError(response.error, response.response?.status)
@@ -220,7 +189,7 @@ export async function listTasks(params?: ListTasksParams): Promise<TasksApiRespo
         throw new Error('Resposta vazia do servidor')
     }
 
-    return response.data as TasksApiResponse
+    return response.data as TaskResponse[]
 }
 
 /**

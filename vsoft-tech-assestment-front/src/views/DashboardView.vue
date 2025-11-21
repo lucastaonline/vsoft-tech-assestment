@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useTasksStore } from '@/stores/tasks'
 import { useAuthStore } from '@/stores/auth'
+import { useIntersection } from '@/composables/useIntersection'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   CheckCircle2,
@@ -19,6 +20,11 @@ import { DateTime } from 'luxon'
 const tasksStore = useTasksStore()
 const authStore = useAuthStore()
 const { isOverdue, formatDate } = useDateUtils()
+const { target: heroRef, isVisible: heroVisible } = useIntersection({ threshold: 0.1 })
+const { target: primaryMetricsRef, isVisible: primaryMetricsVisible } = useIntersection({ threshold: 0.15 })
+const { target: secondaryMetricsRef, isVisible: secondaryMetricsVisible } = useIntersection({ threshold: 0.15 })
+const { target: distributionRef, isVisible: distributionVisible } = useIntersection({ threshold: 0.2 })
+const { target: detailsRef, isVisible: detailsVisible } = useIntersection({ threshold: 0.2 })
 
 // Carregar tarefas ao montar
 onMounted(async () => {
@@ -100,297 +106,333 @@ const statusNames: Record<TaskStatus, string> = {
 <template>
   <div class="space-y-8">
     <!-- Header -->
-    <div>
-      <h1 class="text-4xl font-bold tracking-tight">
-        Dashboard
-      </h1>
-      <p class="text-muted-foreground mt-2">
-        Visão geral das tarefas e métricas do sistema
-      </p>
+    <div ref="heroRef">
+      <template v-if="heroVisible">
+        <h1 class="text-4xl font-bold tracking-tight">
+          Dashboard
+        </h1>
+        <p class="text-muted-foreground mt-2">
+          Visão geral das tarefas e métricas do sistema
+        </p>
+      </template>
+      <div v-else class="space-y-3 animate-pulse">
+        <div class="h-10 w-72 rounded bg-muted" />
+        <div class="h-4 w-60 rounded bg-muted/70" />
+      </div>
     </div>
 
     <!-- Cards de Métricas Principais -->
-    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">
-            Total de Tarefas
-          </CardTitle>
-          <ListTodo class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold" data-testid="metric-total">{{ totalTasks }}</div>
-          <p class="text-xs text-muted-foreground mt-1">
-            Todas as tarefas do sistema
-          </p>
-        </CardContent>
-      </Card>
+    <div ref="primaryMetricsRef">
+      <template v-if="primaryMetricsVisible">
+        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle class="text-sm font-medium">
+                Total de Tarefas
+              </CardTitle>
+              <ListTodo class="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div class="text-2xl font-bold" data-testid="metric-total">{{ totalTasks }}</div>
+              <p class="text-xs text-muted-foreground mt-1">
+                Todas as tarefas do sistema
+              </p>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">
-            Pendentes
-          </CardTitle>
-          <Clock class="h-4 w-4 text-yellow-600" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold" data-testid="metric-pending">{{ pendingTasks }}</div>
-          <p class="text-xs text-muted-foreground mt-1">
-            Aguardando início
-          </p>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle class="text-sm font-medium">
+                Pendentes
+              </CardTitle>
+              <Clock class="h-4 w-4 text-yellow-600" />
+            </CardHeader>
+            <CardContent>
+              <div class="text-2xl font-bold" data-testid="metric-pending">{{ pendingTasks }}</div>
+              <p class="text-xs text-muted-foreground mt-1">
+                Aguardando início
+              </p>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">
-            Em Progresso
-          </CardTitle>
-          <TrendingUp class="h-4 w-4 text-blue-600" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold" data-testid="metric-in-progress">{{ inProgressTasks }}</div>
-          <p class="text-xs text-muted-foreground mt-1">
-            Sendo executadas
-          </p>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle class="text-sm font-medium">
+                Em Progresso
+              </CardTitle>
+              <TrendingUp class="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div class="text-2xl font-bold" data-testid="metric-in-progress">{{ inProgressTasks }}</div>
+              <p class="text-xs text-muted-foreground mt-1">
+                Sendo executadas
+              </p>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">
-            Concluídas
-          </CardTitle>
-          <CheckCircle2 class="h-4 w-4 text-green-600" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold" data-testid="metric-completed">{{ completedTasks }}</div>
-          <p class="text-xs text-muted-foreground mt-1">
-            Taxa de conclusão: {{ completionRate }}%
-          </p>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle class="text-sm font-medium">
+                Concluídas
+              </CardTitle>
+              <CheckCircle2 class="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div class="text-2xl font-bold" data-testid="metric-completed">{{ completedTasks }}</div>
+              <p class="text-xs text-muted-foreground mt-1">
+                Taxa de conclusão: {{ completionRate }}%
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </template>
+      <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div v-for="index in 4" :key="`primary-skel-${index}`" class="h-32 rounded-lg bg-muted/60 animate-pulse" />
+      </div>
     </div>
 
     <!-- Segunda linha de métricas -->
-    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">
-            Tarefas Vencidas
-          </CardTitle>
-          <AlertCircle class="h-4 w-4 text-destructive" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold text-destructive" data-testid="metric-overdue">{{ overdueTasks.length }}</div>
-          <p class="text-xs text-muted-foreground mt-1">
-            Requerem atenção urgente
-          </p>
-        </CardContent>
-      </Card>
+    <div ref="secondaryMetricsRef">
+      <template v-if="secondaryMetricsVisible">
+        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle class="text-sm font-medium">
+                Tarefas Vencidas
+              </CardTitle>
+              <AlertCircle class="h-4 w-4 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              <div class="text-2xl font-bold text-destructive" data-testid="metric-overdue">{{ overdueTasks.length }}
+              </div>
+              <p class="text-xs text-muted-foreground mt-1">
+                Requerem atenção urgente
+              </p>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">
-            Criadas Hoje
-          </CardTitle>
-          <Calendar class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold" data-testid="metric-created-today">{{ tasksCreatedToday }}</div>
-          <p class="text-xs text-muted-foreground mt-1">
-            Novas tarefas hoje
-          </p>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle class="text-sm font-medium">
+                Criadas Hoje
+              </CardTitle>
+              <Calendar class="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div class="text-2xl font-bold" data-testid="metric-created-today">{{ tasksCreatedToday }}</div>
+              <p class="text-xs text-muted-foreground mt-1">
+                Novas tarefas hoje
+              </p>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">
-            Taxa de Conclusão
-          </CardTitle>
-          <CheckCircle2 class="h-4 w-4 text-green-600" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold" data-testid="metric-completion-rate">{{ completionRate }}%</div>
-          <p class="text-xs text-muted-foreground mt-1">
-            {{ completedTasks }} de {{ totalTasks }} tarefas
-          </p>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle class="text-sm font-medium">
+                Taxa de Conclusão
+              </CardTitle>
+              <CheckCircle2 class="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div class="text-2xl font-bold" data-testid="metric-completion-rate">{{ completionRate }}%</div>
+              <p class="text-xs text-muted-foreground mt-1">
+                {{ completedTasks }} de {{ totalTasks }} tarefas
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </template>
+      <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div v-for="index in 3" :key="`secondary-skel-${index}`" class="h-36 rounded-lg bg-muted/60 animate-pulse" />
+      </div>
     </div>
 
     <!-- Distribuição por Status e Outras Visualizações -->
-    <div class="grid gap-4 md:grid-cols-2">
-      <!-- Distribuição por Status -->
-      <Card>
-        <CardHeader>
-          <CardTitle>Distribuição por Status</CardTitle>
-          <CardDescription>
-            Visualização das tarefas por status
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <Clock class="h-4 w-4 text-yellow-600" />
-                <span class="text-sm">Pendente</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <div class="w-32 bg-muted rounded-full h-2">
-                  <div class="bg-yellow-600 h-2 rounded-full transition-all"
-                    :style="{ width: totalTasks > 0 ? `${(pendingTasks / totalTasks) * 100}%` : '0%' }"></div>
+    <div ref="distributionRef">
+      <template v-if="distributionVisible">
+        <div class="grid gap-4 md:grid-cols-2">
+          <!-- Distribuição por Status -->
+          <Card>
+            <CardHeader>
+              <CardTitle>Distribuição por Status</CardTitle>
+              <CardDescription>
+                Visualização das tarefas por status
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <Clock class="h-4 w-4 text-yellow-600" />
+                    <span class="text-sm">Pendente</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="w-32 bg-muted rounded-full h-2">
+                      <div class="bg-yellow-600 h-2 rounded-full transition-all"
+                        :style="{ width: totalTasks > 0 ? `${(pendingTasks / totalTasks) * 100}%` : '0%' }"></div>
+                    </div>
+                    <span class="text-sm font-medium w-8 text-right">{{ pendingTasks }}</span>
+                  </div>
                 </div>
-                <span class="text-sm font-medium w-8 text-right">{{ pendingTasks }}</span>
-              </div>
-            </div>
 
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <TrendingUp class="h-4 w-4 text-blue-600" />
-                <span class="text-sm">Em Progresso</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <div class="w-32 bg-muted rounded-full h-2">
-                  <div class="bg-blue-600 h-2 rounded-full transition-all"
-                    :style="{ width: totalTasks > 0 ? `${(inProgressTasks / totalTasks) * 100}%` : '0%' }"></div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <TrendingUp class="h-4 w-4 text-blue-600" />
+                    <span class="text-sm">Em Progresso</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="w-32 bg-muted rounded-full h-2">
+                      <div class="bg-blue-600 h-2 rounded-full transition-all"
+                        :style="{ width: totalTasks > 0 ? `${(inProgressTasks / totalTasks) * 100}%` : '0%' }"></div>
+                    </div>
+                    <span class="text-sm font-medium w-8 text-right">{{ inProgressTasks }}</span>
+                  </div>
                 </div>
-                <span class="text-sm font-medium w-8 text-right">{{ inProgressTasks }}</span>
-              </div>
-            </div>
 
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <CheckCircle2 class="h-4 w-4 text-green-600" />
-                <span class="text-sm">Concluída</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <div class="w-32 bg-muted rounded-full h-2">
-                  <div class="bg-green-600 h-2 rounded-full transition-all"
-                    :style="{ width: totalTasks > 0 ? `${(completedTasks / totalTasks) * 100}%` : '0%' }"></div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <CheckCircle2 class="h-4 w-4 text-green-600" />
+                    <span class="text-sm">Concluída</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="w-32 bg-muted rounded-full h-2">
+                      <div class="bg-green-600 h-2 rounded-full transition-all"
+                        :style="{ width: totalTasks > 0 ? `${(completedTasks / totalTasks) * 100}%` : '0%' }"></div>
+                    </div>
+                    <span class="text-sm font-medium w-8 text-right">{{ completedTasks }}</span>
+                  </div>
                 </div>
-                <span class="text-sm font-medium w-8 text-right">{{ completedTasks }}</span>
               </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      <!-- Top Usuários -->
-      <Card>
-        <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            <Users class="h-5 w-5" />
-            Top Usuários
-          </CardTitle>
-          <CardDescription>
-            Usuários com mais tarefas atribuídas
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div class="space-y-3">
-            <div v-for="(user, index) in tasksByUser" :key="index" class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-medium">
-                  {{ user.userName.charAt(0).toUpperCase() }}
+          <!-- Top Usuários -->
+          <Card>
+            <CardHeader>
+              <CardTitle class="flex items-center gap-2">
+                <Users class="h-5 w-5" />
+                Top Usuários
+              </CardTitle>
+              <CardDescription>
+                Usuários com mais tarefas atribuídas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div class="space-y-3">
+                <div v-for="(user, index) in tasksByUser" :key="index" class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-medium">
+                      {{ user.userName.charAt(0).toUpperCase() }}
+                    </div>
+                    <span class="text-sm font-medium">{{ user.userName }}</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="w-24 bg-muted rounded-full h-2">
+                      <div class="bg-primary h-2 rounded-full transition-all"
+                        :style="{ width: totalTasks > 0 ? `${(user.count / totalTasks) * 100}%` : '0%' }"></div>
+                    </div>
+                    <span class="text-sm font-medium w-6 text-right">{{ user.count }}</span>
+                  </div>
                 </div>
-                <span class="text-sm font-medium">{{ user.userName }}</span>
+                <p v-if="tasksByUser.length === 0" class="text-sm text-muted-foreground text-center py-4">
+                  Nenhum dado disponível
+                </p>
               </div>
-              <div class="flex items-center gap-2">
-                <div class="w-24 bg-muted rounded-full h-2">
-                  <div class="bg-primary h-2 rounded-full transition-all"
-                    :style="{ width: totalTasks > 0 ? `${(user.count / totalTasks) * 100}%` : '0%' }"></div>
-                </div>
-                <span class="text-sm font-medium w-6 text-right">{{ user.count }}</span>
-              </div>
-            </div>
-            <p v-if="tasksByUser.length === 0" class="text-sm text-muted-foreground text-center py-4">
-              Nenhum dado disponível
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </template>
+      <div v-else class="grid gap-4 md:grid-cols-2">
+        <div v-for="index in 2" :key="`distribution-skel-${index}`" class="h-72 rounded-lg bg-muted/50 animate-pulse" />
+      </div>
     </div>
 
     <!-- Tarefas Vencidas e Recentes -->
-    <div class="grid gap-4 md:grid-cols-2">
-      <!-- Tarefas Vencidas -->
-      <Card>
-        <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            <AlertCircle class="h-5 w-5 text-destructive" />
-            Tarefas Vencidas
-          </CardTitle>
-          <CardDescription>
-            Tarefas que passaram da data de vencimento
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div class="space-y-3">
-            <div v-for="task in overdueTasks.slice(0, 5)" :key="task.id"
-              class="flex items-start justify-between p-3 rounded-lg border border-destructive/20 bg-destructive/5">
-              <div class="flex-1">
-                <p class="text-sm font-medium line-clamp-1">{{ task.title || 'Sem título' }}</p>
-                <p class="text-xs text-muted-foreground mt-1">
-                  Vencida em {{ formatDate(task.dueDate || '') }}
+    <div ref="detailsRef">
+      <template v-if="detailsVisible">
+        <div class="grid gap-4 md:grid-cols-2">
+          <!-- Tarefas Vencidas -->
+          <Card>
+            <CardHeader>
+              <CardTitle class="flex items-center gap-2">
+                <AlertCircle class="h-5 w-5 text-destructive" />
+                Tarefas Vencidas
+              </CardTitle>
+              <CardDescription>
+                Tarefas que passaram da data de vencimento
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div class="space-y-3">
+                <div v-for="task in overdueTasks.slice(0, 5)" :key="task.id"
+                  class="flex items-start justify-between p-3 rounded-lg border border-destructive/20 bg-destructive/5">
+                  <div class="flex-1">
+                    <p class="text-sm font-medium line-clamp-1">{{ task.title || 'Sem título' }}</p>
+                    <p class="text-xs text-muted-foreground mt-1">
+                      Vencida em {{ formatDate(task.dueDate || '') }}
+                    </p>
+                    <p v-if="task.userName" class="text-xs text-muted-foreground mt-1">
+                      {{ task.userName }}
+                    </p>
+                  </div>
+                  <span class="text-xs font-medium text-destructive ml-2">
+                    {{ statusNames[task.status || 0] }}
+                  </span>
+                </div>
+                <p v-if="overdueTasks.length === 0" class="text-sm text-muted-foreground text-center py-4">
+                  Nenhuma tarefa vencida! 🎉
                 </p>
-                <p v-if="task.userName" class="text-xs text-muted-foreground mt-1">
-                  {{ task.userName }}
+                <p v-if="overdueTasks.length > 5" class="text-xs text-muted-foreground text-center pt-2">
+                  E mais {{ overdueTasks.length - 5 }} tarefa(s) vencida(s)
                 </p>
               </div>
-              <span class="text-xs font-medium text-destructive ml-2">
-                {{ statusNames[task.status || 0] }}
-              </span>
-            </div>
-            <p v-if="overdueTasks.length === 0" class="text-sm text-muted-foreground text-center py-4">
-              Nenhuma tarefa vencida! 🎉
-            </p>
-            <p v-if="overdueTasks.length > 5" class="text-xs text-muted-foreground text-center pt-2">
-              E mais {{ overdueTasks.length - 5 }} tarefa(s) vencida(s)
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      <!-- Tarefas Recentes -->
-      <Card>
-        <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            <Calendar class="h-5 w-5" />
-            Tarefas Recentes
-          </CardTitle>
-          <CardDescription>
-            Últimas tarefas criadas no sistema
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div class="space-y-3">
-            <div v-for="task in recentTasks" :key="task.id"
-              class="flex items-start justify-between p-3 rounded-lg border">
-              <div class="flex-1">
-                <p class="text-sm font-medium line-clamp-1">{{ task.title || 'Sem título' }}</p>
-                <p class="text-xs text-muted-foreground mt-1">
-                  Criada em {{ formatDate(task.createdAt || '') }}
-                </p>
-                <p v-if="task.userName" class="text-xs text-muted-foreground mt-1">
-                  {{ task.userName }}
+          <!-- Tarefas Recentes -->
+          <Card>
+            <CardHeader>
+              <CardTitle class="flex items-center gap-2">
+                <Calendar class="h-5 w-5" />
+                Tarefas Recentes
+              </CardTitle>
+              <CardDescription>
+                Últimas tarefas criadas no sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div class="space-y-3">
+                <div v-for="task in recentTasks" :key="task.id"
+                  class="flex items-start justify-between p-3 rounded-lg border">
+                  <div class="flex-1">
+                    <p class="text-sm font-medium line-clamp-1">{{ task.title || 'Sem título' }}</p>
+                    <p class="text-xs text-muted-foreground mt-1">
+                      Criada em {{ formatDate(task.createdAt || '') }}
+                    </p>
+                    <p v-if="task.userName" class="text-xs text-muted-foreground mt-1">
+                      {{ task.userName }}
+                    </p>
+                  </div>
+                  <span class="text-xs font-medium ml-2" :class="{
+                    'text-yellow-600': task.status === 0,
+                    'text-blue-600': task.status === 1,
+                    'text-green-600': task.status === 2,
+                  }">
+                    {{ statusNames[task.status || 0] }}
+                  </span>
+                </div>
+                <p v-if="recentTasks.length === 0" class="text-sm text-muted-foreground text-center py-4">
+                  Nenhuma tarefa encontrada
                 </p>
               </div>
-              <span class="text-xs font-medium ml-2" :class="{
-                'text-yellow-600': task.status === 0,
-                'text-blue-600': task.status === 1,
-                'text-green-600': task.status === 2,
-              }">
-                {{ statusNames[task.status || 0] }}
-              </span>
-            </div>
-            <p v-if="recentTasks.length === 0" class="text-sm text-muted-foreground text-center py-4">
-              Nenhuma tarefa encontrada
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </template>
+      <div v-else class="grid gap-4 md:grid-cols-2">
+        <div v-for="index in 2" :key="`details-skel-${index}`" class="h-80 rounded-lg bg-muted/40 animate-pulse" />
+      </div>
     </div>
   </div>
 </template>

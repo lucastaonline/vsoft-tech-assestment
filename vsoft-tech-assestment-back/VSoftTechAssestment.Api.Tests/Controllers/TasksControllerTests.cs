@@ -109,41 +109,6 @@ public class TasksControllerTests
     }
 
     [Fact]
-    public async Task GetTasks_WithPagination_ShouldReturnPaginatedResult()
-    {
-        // Arrange
-        var cursor = Guid.NewGuid();
-        var paginatedResponse = new PaginatedTasksResponse
-        {
-            Tasks = new List<TaskResponse>
-            {
-                new TaskResponse
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Task 2",
-                    Status = Models.Entities.TaskStatus.Pending,
-                    UserId = _testUserId
-                }
-            },
-            NextCursor = Guid.NewGuid(),
-            HasMore = true
-        };
-
-        _taskServiceMock.Setup(x => x.GetAllTasksPaginatedAsync(cursor, 10))
-            .ReturnsAsync(paginatedResponse);
-
-        // Act
-        var result = await _controller.GetTasks(cursor, 10);
-
-        // Assert
-        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var response = okResult.Value.Should().BeOfType<PaginatedTasksResponse>().Subject;
-        response.Tasks.Should().HaveCount(1);
-        response.HasMore.Should().BeTrue();
-        _taskServiceMock.Verify(x => x.GetAllTasksPaginatedAsync(cursor, 10), Times.Once);
-    }
-
-    [Fact]
     public async Task UpdateTask_WithValidData_ShouldReturnOk()
     {
         // Arrange
@@ -355,6 +320,47 @@ public class TasksControllerTests
         // Assert
         result.Result.Should().BeOfType<NotFoundResult>();
         _taskServiceMock.Verify(x => x.GetTaskByIdAsync(taskId), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateMockTasks_WithValidAmount_ShouldReturnOk()
+    {
+        // Arrange
+        var request = new GenerateMockTasksRequest { Amount = 3 };
+        var mockTasks = new List<TaskResponse>
+        {
+            new() { Id = Guid.NewGuid(), Title = "Mock 1" },
+            new() { Id = Guid.NewGuid(), Title = "Mock 2" },
+            new() { Id = Guid.NewGuid(), Title = "Mock 3" }
+        };
+
+        _taskServiceMock.Setup(x => x.CreateMockTasksAsync(request.Amount))
+            .ReturnsAsync(mockTasks);
+
+        // Act
+        var result = await _controller.CreateMockTasks(request);
+
+        // Assert
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var tasks = okResult.Value.Should().BeAssignableTo<IEnumerable<TaskResponse>>().Subject;
+        tasks.Should().HaveCount(3);
+        _taskServiceMock.Verify(x => x.CreateMockTasksAsync(request.Amount), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateMockTasks_WhenServiceThrows_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = new GenerateMockTasksRequest { Amount = 5 };
+
+        _taskServiceMock.Setup(x => x.CreateMockTasksAsync(request.Amount))
+            .ThrowsAsync(new InvalidOperationException("error"));
+
+        // Act
+        var result = await _controller.CreateMockTasks(request);
+
+        // Assert
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
     }
 }
 
