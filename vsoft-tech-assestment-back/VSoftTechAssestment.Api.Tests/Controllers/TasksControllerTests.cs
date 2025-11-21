@@ -62,7 +62,7 @@ public class TasksControllerTests
             CreatedAt = DateTime.UtcNow
         };
 
-        _taskServiceMock.Setup(x => x.CreateTaskAsync(request, _testUserId))
+        _taskServiceMock.Setup(x => x.CreateTaskAsync(request, _testUserId, _testUserId))
             .ReturnsAsync(expectedResponse);
 
         // Act
@@ -74,7 +74,7 @@ public class TasksControllerTests
         response.Title.Should().Be(request.Title);
         response.Description.Should().Be(request.Description);
         response.UserId.Should().Be(_testUserId);
-        _taskServiceMock.Verify(x => x.CreateTaskAsync(request, _testUserId), Times.Once);
+        _taskServiceMock.Verify(x => x.CreateTaskAsync(request, _testUserId, _testUserId), Times.Once);
     }
 
     [Fact]

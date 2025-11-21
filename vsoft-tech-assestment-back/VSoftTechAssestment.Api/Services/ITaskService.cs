@@ -17,7 +17,7 @@ public interface ITaskService
     /// <summary>
     /// Cria uma nova tarefa para o usuário especificado
     /// </summary>
-    Task<TaskResponse> CreateTaskAsync(CreateTaskRequest request, string userId);
+    Task<TaskResponse> CreateTaskAsync(CreateTaskRequest request, string assignedUserId, string createdByUserId);
 
     /// <summary>
     /// Atualiza uma tarefa existente (apenas se o usuário autenticado for o dono)

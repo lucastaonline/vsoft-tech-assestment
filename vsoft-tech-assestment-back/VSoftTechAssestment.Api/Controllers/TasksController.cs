@@ -98,9 +98,9 @@ public class TasksController : ControllerBase
         }
 
         // Se userId não foi fornecido no request, usa o usuário autenticado
-        var userId = !string.IsNullOrEmpty(request.UserId) ? request.UserId : authenticatedUserId;
+        var assignedUserId = !string.IsNullOrEmpty(request.UserId) ? request.UserId : authenticatedUserId;
 
-        var task = await _taskService.CreateTaskAsync(request, userId);
+        var task = await _taskService.CreateTaskAsync(request, assignedUserId, authenticatedUserId);
         return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
     }
 

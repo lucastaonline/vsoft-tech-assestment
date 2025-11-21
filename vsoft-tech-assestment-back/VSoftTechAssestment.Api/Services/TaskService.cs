@@ -108,7 +108,7 @@ public class TaskService : ITaskService
         };
     }
 
-    public async Task<TaskResponse> CreateTaskAsync(CreateTaskRequest request, string userId)
+    public async Task<TaskResponse> CreateTaskAsync(CreateTaskRequest request, string assignedUserId, string createdByUserId)
     {
         var task = new TaskEntity
         {
@@ -117,17 +117,19 @@ public class TaskService : ITaskService
             Description = request.Description,
             DueDate = request.DueDate,
             Status = request.Status,
-            UserId = userId,
+            UserId = assignedUserId,
             CreatedAt = DateTime.UtcNow
         };
 
         _context.Tasks.Add(task);
         await _context.SaveChangesAsync();
 
-        // Send notification via RabbitMQ
-        _rabbitMQService.PublishTaskNotification(userId, task.Id.ToString(), task.Title);
+        if (!string.Equals(assignedUserId, createdByUserId, StringComparison.OrdinalIgnoreCase))
+        {
+            _rabbitMQService.PublishTaskNotification(assignedUserId, task.Id.ToString(), task.Title);
+        }
 
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await _userManager.FindByIdAsync(assignedUserId);
         
         return new TaskResponse
         {
