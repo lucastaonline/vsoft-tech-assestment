@@ -1,137 +1,124 @@
-# VSoft Tech Assessment - Backend
+# Backend (.NET 8) – VSoft Tech Assessment
 
-API Backend desenvolvida em .NET 8 para o desafio técnico VSoft.
+API ASP.NET Core 8 que expõe os endpoints REST/SSE usados pelo frontend. O projeto segue princípios de Clean Code, integra RabbitMQ para notificações e utiliza SignalR para entrega em tempo real.
 
-## Requisitos Técnicos
+## Tecnologias principais
 
-- .NET 8.0
-- ASP.NET Core Web API
-- Entity Framework Core com PostgreSQL
-- ASP.NET Core Identity
-- JWT Bearer Token Authentication
-- Swagger/OpenAPI para documentação
-- CORS configurado para comunicação com o frontend
+- ASP.NET Core 8 Web API + Minimal Hosting
+- Entity Framework Core + PostgreSQL + Identity
+- JWT + cookies HttpOnly para autenticação segura
+- RabbitMQ + `BackgroundService` (consumer) + SignalR Hub
+- Swagger/Scalar com suporte a Bearer token
+- Testes xUnit (unitários e integração) com FluentAssertions, Moq e `WebApplicationFactory`
 
-## Estrutura do Projeto
+## Estrutura
 
 ```
 vsoft-tech-assestment-back/
-├── VSoftTechAssestment.Api/      # Projeto principal da API
-│   ├── Controllers/              # Controladores da API
-│   │   └── AuthController.cs    # Endpoints de autenticação
-│   ├── Data/                     # Contexto do banco de dados
-│   │   └── ApplicationDbContext.cs
-│   ├── Models/                   # DTOs e modelos
-│   │   └── DTOs/
-│   │       └── Auth/            # DTOs de autenticação
-│   ├── Properties/               # Configurações de lançamento
-│   ├── Program.cs               # Configuração principal da aplicação
-│   └── appsettings.json         # Configurações da aplicação
-└── VSoftTechAssestment.sln      # Arquivo de solução
+├── VSoftTechAssestment.Api/
+│   ├── Controllers/                 # Auth, Tasks, Users, Notifications
+│   ├── Data/ApplicationDbContext.cs # Contexto EF + Identity
+│   ├── Models/DTOs e Entities       # Contratos e domínios
+│   ├── Services/                    # Auth, Tasks, RabbitMQ, Notifications
+│   ├── Hubs/NotificationHub.cs      # SignalR
+│   ├── Program.cs / appsettings.*   # Bootstrap e DI
+│   └── Dockerfile / entrypoint.sh
+└── VSoftTechAssestment.Api.Tests/   # Suite de testes
 ```
 
 ## Pré-requisitos
 
-- .NET 8 SDK instalado
-- PostgreSQL instalado e rodando
-- Ferramenta Entity Framework Core CLI instalada (para migrations)
-
-### Instalando Entity Framework Core CLI
-
-```bash
-dotnet tool install --global dotnet-ef
-```
-
-## Configuração do Banco de Dados
-
-1. Certifique-se de que o PostgreSQL está rodando
-2. Configure a connection string no `appsettings.json` e `appsettings.Development.json`:
-   ```json
-   "ConnectionStrings": {
-     "DefaultConnection": "Host=localhost;Port=5432;Database=vsoft_tech_assessment;Username=postgres;Password=postgres"
-   }
-   ```
-
-3. Crie a database (se ainda não existir):
-   ```sql
-   CREATE DATABASE vsoft_tech_assessment;
-   ```
-
-4. Crie e aplique as migrations:
-   ```bash
-   cd VSoftTechAssestment.Api
-   dotnet ef migrations add InitialIdentityMigration
-   dotnet ef database update
-   ```
-
-**Nota:** Migrations devem ser executadas manualmente. Isso segue as melhores práticas para evitar problemas em produção e dar controle sobre quando mudanças de schema ocorrem.
-
-## Executando o Projeto
-
-```bash
-# Restaurar dependências
-dotnet restore
-
-# Compilar o projeto
-dotnet build
-
-# Executar o projeto
-cd VSoftTechAssestment.Api
-dotnet run
-```
-
-A API estará disponível em:
-- HTTP: `http://localhost:5001`
-- Swagger UI: `http://localhost:5001/swagger`
-
-## Autenticação
-
-A API utiliza JWT Bearer Token para autenticação.
-
-### Endpoints de Autenticação
-
-- **POST /api/auth/register** - Registrar novo usuário
-  ```json
-  {
-    "email": "user@example.com",
-    "userName": "username",
-    "password": "Password123"
-  }
-  ```
-
-- **POST /api/auth/login** - Realizar login
-  ```json
-  {
-    "userNameOrEmail": "username",
-    "password": "Password123"
-  }
-  ```
-  
-  Retorna um token JWT que deve ser usado no header `Authorization: Bearer {token}` em requisições subsequentes.
-
-### Configuração JWT
-
-As configurações JWT estão em `appsettings.json`:
-- `Jwt:Secret` - Chave secreta para assinar tokens (mínimo 32 caracteres)
-- `Jwt:Issuer` - Emissor do token
-- `Jwt:Audience` - Público do token
-- `Jwt:ExpirationMinutes` - Tempo de expiração do token (padrão: 60 minutos)
-
-### Swagger com Autenticação
-
-No Swagger UI, clique no botão **"Authorize"** no topo da página e insira o token no formato:
-```
-Bearer {seu_token_jwt}
-```
+- .NET SDK 8.0 (`dotnet --version`)
+- PostgreSQL 15+ e RabbitMQ 3.12+ (ou utilize os containers do `docker compose`)
+- Ferramenta EF CLI: `dotnet tool install --global dotnet-ef`
 
 ## Configuração
 
-O projeto está configurado com:
-- CORS habilitado para permitir comunicação com o frontend (localhost:5173 e localhost:3000)
-- Swagger habilitado em ambiente de desenvolvimento com suporte a JWT
-- Logging configurado via appsettings.json
-- Identity configurado com regras de senha:
-  - Mínimo 6 caracteres
-  - Requer dígito, letra minúscula e maiúscula
-  - Não requer caracteres especiais
+1. Ajuste `appsettings.Development.json` ou use `dotnet user-secrets`:
+   ```json
+   "ConnectionStrings": {
+     "DefaultConnection": "Host=localhost;Port=5432;Database=vsoft_tech_assessment;Username=postgres;Password=postgres"
+   },
+   "Jwt": {
+     "Secret": "chave-super-secreta-com-32-caracteres",
+     "Issuer": "VSoftTechAssestment",
+     "Audience": "VSoftTechAssestment",
+     "ExpirationMinutes": 60
+   },
+   "RabbitMQ": {
+     "HostName": "localhost",
+     "UserName": "guest",
+     "Password": "guest",
+     "QueueName": "task_notifications"
+   }
+   ```
+2. Crie o banco/migrations:
+   ```bash
+   cd vsoft-tech-assestment-back/VSoftTechAssestment.Api
+   dotnet ef database update
+   ```
+3. (Opcional) Use `dotnet user-secrets set "Jwt:Secret" "<sua-chave>"` para esconder secrets durante o desenvolvimento.
+
+## Execução e debug
+
+### CLI
+
+```bash
+cd vsoft-tech-assestment-back/VSoftTechAssestment.Api
+dotnet restore
+dotnet watch run   # recompila ao salvar
+```
+
+API disponível em `https://localhost:5001` (Kestrel) e `http://localhost:5000`. O Swagger/Scalar fica em `/swagger` e já suporta o fluxo de autenticação.
+
+### Visual Studio
+
+1. Abra `VSoftTechAssestment.sln`.
+2. Selecione o projeto `VSoftTechAssestment.Api` como Startup.
+3. Use o perfil `https` ou `http` de `Properties/launchSettings.json`.
+4. Pressione `F5` e debugue normalmente (breakpoints em controllers/serviços).
+
+### VS Code
+
+1. Abra a pasta `vsoft-tech-assestment-back`.
+2. Execute **.NET: Generate Assets for Build and Debug** (C# Dev Kit/OmniSharp) para criar `.vscode/launch.json`.
+3. Use o profile “.NET Launch Kestrel” para depurar.
+4. `dotnet watch run` é a opção mais rápida para hot reload. Breakpoints funcionam via `Run and Debug` > `.NET Launch`.
+
+### Dependências externas
+
+- **RabbitMQ**: Se não estiver usando docker, suba manualmente (`brew services start rabbitmq` ou `docker compose up rabbitmq`).  
+- **SignalR**: o hub está em `/notificationsHub`. Utilize o frontend (hook `useSignalR`) ou um client como `wscat` para validar notificações.
+- **UsersController**: expõe `POST /api/users/createRandom` para gerar usuários fake e testar fan-out de notificações via RabbitMQ.
+
+## Testes
+
+```bash
+dotnet test vsoft-tech-assestment-back/VSoftTechAssestment.Api.Tests/VSoftTechAssestment.Api.Tests.csproj
+```
+
+- **Controllers**: Auth e Tasks com cenários de sucesso/erro (JWT, validação, ownership).
+- **Integração**: `TasksIntegrationTests` usa `WebApplicationFactory`, EF InMemory e RabbitMQ mockado (o hosted service real é removido durante os testes).
+- Para executar algo específico: `dotnet test --filter "FullyQualifiedName~TasksControllerTests.UpdateTask_WithValidData"`.
+
+## Dicas de desenvolvimento
+
+- Regere o cliente OpenAPI após alterar DTOs (`npm run generate:api` no frontend).
+- Para acompanhar mensagens na fila, abra http://localhost:15672 (guest/guest) quando estiver usando Docker.
+- `dotnet ef migrations add <NomeDaMigration>` sempre dentro de `VSoftTechAssestment.Api`.
+- `docker compose up -d` (na raiz) sobe um ambiente completo (Postgres, RabbitMQ, API e Front). Consulte `README-DOCKER.md` para mais detalhes.
+
+## Troubleshooting rápido
+
+| Sintoma | Correção |
+|--------|----------|
+| `RabbitMQ.Client.Exceptions.BrokerUnreachableException` | Serviço RabbitMQ indisponível. Suba o container (`docker compose up rabbitmq`) ou revise as credenciais em `appsettings`. |
+| `Npgsql.NpgsqlException (0x80004005): 3D000` | Banco inexistente. Execute `dotnet ef database update` ou crie manualmente `CREATE DATABASE vsoft_tech_assessment`. |
+| `System.InvalidOperationException: Unable to resolve service` | Rode `dotnet restore` e confirme que todos os projetos estão presentes na solução. |
+
+## Próximos passos
+
+- Garanta cobertura mínima de testes para novos endpoints críticos.
+- Documente migrations relevantes no PR e valide em staging antes do deploy.
+- Mantenha a execução via `docker compose up -d` intacta sempre que alterar configurações do backend.
 

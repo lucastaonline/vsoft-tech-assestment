@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using VSoftTechAssestment.Api.Controllers;
@@ -16,6 +17,12 @@ public class AuthControllerTests
     {
         _authServiceMock = new Mock<IAuthService>();
         _controller = new AuthController(_authServiceMock.Object);
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Host = new HostString("localhost");
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = httpContext
+        };
     }
 
     [Fact]

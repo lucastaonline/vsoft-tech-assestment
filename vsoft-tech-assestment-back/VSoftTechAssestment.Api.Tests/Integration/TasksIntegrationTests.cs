@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using System.Net;
 using System.Net.Http.Json;
 using VSoftTechAssestment.Api.Data;
@@ -65,6 +66,15 @@ public class TasksIntegrationTests : IClassFixture<WebApplicationFactory<Program
                 if (rabbitMQDescriptor != null)
                 {
                     services.Remove(rabbitMQDescriptor);
+                }
+
+                // Remove RabbitMQ background consumer
+                var hostedServiceDescriptor = services.SingleOrDefault(d =>
+                    d.ServiceType == typeof(IHostedService) &&
+                    d.ImplementationType == typeof(VSoftTechAssestment.Api.Services.RabbitMQNotificationConsumer));
+                if (hostedServiceDescriptor != null)
+                {
+                    services.Remove(hostedServiceDescriptor);
                 }
 
                 services.AddSingleton<VSoftTechAssestment.Api.Services.IRabbitMQService>(

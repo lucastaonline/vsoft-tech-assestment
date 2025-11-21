@@ -78,7 +78,7 @@ public class TasksControllerTests
     }
 
     [Fact]
-    public async Task GetTasks_ShouldReturnOnlyUserTasks()
+    public async Task GetTasks_WithoutPagination_ShouldReturnAllTasks()
     {
         // Arrange
         var expectedTasks = new List<TaskResponse>
@@ -86,7 +86,7 @@ public class TasksControllerTests
             new TaskResponse
             {
                 Id = Guid.NewGuid(),
-                Title = "User Task",
+                Title = "Task 1",
                 Description = "Description",
                 DueDate = DateTime.UtcNow,
                 Status = Models.Entities.TaskStatus.Pending,
@@ -95,22 +95,56 @@ public class TasksControllerTests
             }
         };
 
-        _taskServiceMock.Setup(x => x.GetUserTasksAsync(_testUserId))
+        _taskServiceMock.Setup(x => x.GetAllTasksAsync())
             .ReturnsAsync(expectedTasks);
 
         // Act
         var result = await _controller.GetTasks();
 
         // Assert
-        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var tasks = okResult.Value.Should().BeAssignableTo<IEnumerable<TaskResponse>>().Subject;
         tasks.Should().HaveCount(1);
-        tasks.First().Title.Should().Be("User Task");
-        _taskServiceMock.Verify(x => x.GetUserTasksAsync(_testUserId), Times.Once);
+        _taskServiceMock.Verify(x => x.GetAllTasksAsync(), Times.Once);
     }
 
     [Fact]
-    public async Task UpdateTask_WithValidData_ShouldReturnNoContent()
+    public async Task GetTasks_WithPagination_ShouldReturnPaginatedResult()
+    {
+        // Arrange
+        var cursor = Guid.NewGuid();
+        var paginatedResponse = new PaginatedTasksResponse
+        {
+            Tasks = new List<TaskResponse>
+            {
+                new TaskResponse
+                {
+                    Id = Guid.NewGuid(),
+                    Title = "Task 2",
+                    Status = Models.Entities.TaskStatus.Pending,
+                    UserId = _testUserId
+                }
+            },
+            NextCursor = Guid.NewGuid(),
+            HasMore = true
+        };
+
+        _taskServiceMock.Setup(x => x.GetAllTasksPaginatedAsync(cursor, 10))
+            .ReturnsAsync(paginatedResponse);
+
+        // Act
+        var result = await _controller.GetTasks(cursor, 10);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = okResult.Value.Should().BeOfType<PaginatedTasksResponse>().Subject;
+        response.Tasks.Should().HaveCount(1);
+        response.HasMore.Should().BeTrue();
+        _taskServiceMock.Verify(x => x.GetAllTasksPaginatedAsync(cursor, 10), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateTask_WithValidData_ShouldReturnOk()
     {
         // Arrange
         var taskId = Guid.NewGuid();
@@ -119,18 +153,40 @@ public class TasksControllerTests
             Title = "Updated Title",
             Description = "Updated Description",
             DueDate = DateTime.UtcNow.AddDays(1),
-            Status = Models.Entities.TaskStatus.InProgress
+            Status = Models.Entities.TaskStatus.InProgress,
+            UserId = _testUserId
         };
 
-        _taskServiceMock.Setup(x => x.UpdateTaskAsync(taskId, request, _testUserId))
-            .ReturnsAsync(true);
+        var existingTask = new TaskResponse
+        {
+            Id = taskId,
+            UserId = _testUserId
+        };
+
+        var updatedTask = new TaskResponse
+        {
+            Id = taskId,
+            Title = request.Title,
+            Description = request.Description,
+            Status = request.Status,
+            UserId = request.UserId
+        };
+
+        _taskServiceMock.Setup(x => x.GetTaskByIdAsync(taskId))
+            .ReturnsAsync(existingTask);
+
+        _taskServiceMock.Setup(x => x.UpdateTaskAsync(taskId, request, _testUserId, request.UserId))
+            .ReturnsAsync(updatedTask);
 
         // Act
         var result = await _controller.UpdateTask(taskId, request);
 
         // Assert
-        result.Should().BeOfType<NoContentResult>();
-        _taskServiceMock.Verify(x => x.UpdateTaskAsync(taskId, request, _testUserId), Times.Once);
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = okResult.Value.Should().BeOfType<TaskResponse>().Subject;
+        response.Title.Should().Be(request.Title);
+        _taskServiceMock.Verify(x => x.GetTaskByIdAsync(taskId), Times.Once);
+        _taskServiceMock.Verify(x => x.UpdateTaskAsync(taskId, request, _testUserId, request.UserId), Times.Once);
     }
 
     [Fact]
@@ -143,18 +199,73 @@ public class TasksControllerTests
             Title = "Updated Title",
             Description = "Updated Description",
             DueDate = DateTime.UtcNow.AddDays(1),
-            Status = Models.Entities.TaskStatus.InProgress
+            Status = Models.Entities.TaskStatus.InProgress,
+            UserId = _testUserId
         };
 
-        _taskServiceMock.Setup(x => x.UpdateTaskAsync(taskId, request, _testUserId))
-            .ReturnsAsync(false);
+        _taskServiceMock.Setup(x => x.GetTaskByIdAsync(taskId))
+            .ReturnsAsync((TaskResponse?)null);
 
         // Act
         var result = await _controller.UpdateTask(taskId, request);
 
         // Assert
-        result.Should().BeOfType<NotFoundResult>();
-        _taskServiceMock.Verify(x => x.UpdateTaskAsync(taskId, request, _testUserId), Times.Once);
+        result.Result.Should().BeOfType<NotFoundResult>();
+        _taskServiceMock.Verify(x => x.UpdateTaskAsync(It.IsAny<Guid>(), It.IsAny<UpdateTaskRequest>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateTask_WhenUserIsNotOwner_ShouldReturnForbidden()
+    {
+        // Arrange
+        var taskId = Guid.NewGuid();
+        var request = new UpdateTaskRequest
+        {
+            Title = "Updated Title",
+            Description = "Updated Description",
+            DueDate = DateTime.UtcNow.AddDays(1),
+            Status = Models.Entities.TaskStatus.InProgress,
+            UserId = _testUserId
+        };
+
+        var existingTask = new TaskResponse
+        {
+            Id = taskId,
+            UserId = "another-user"
+        };
+
+        _taskServiceMock.Setup(x => x.GetTaskByIdAsync(taskId))
+            .ReturnsAsync(existingTask);
+
+        // Act
+        var result = await _controller.UpdateTask(taskId, request);
+
+        // Assert
+        result.Result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        _taskServiceMock.Verify(x => x.UpdateTaskAsync(It.IsAny<Guid>(), It.IsAny<UpdateTaskRequest>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateTask_WithoutUserId_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var taskId = Guid.NewGuid();
+        var request = new UpdateTaskRequest
+        {
+            Title = "Updated Title",
+            Description = "Updated Description",
+            DueDate = DateTime.UtcNow.AddDays(1),
+            Status = Models.Entities.TaskStatus.InProgress,
+            UserId = string.Empty
+        };
+
+        // Act
+        var result = await _controller.UpdateTask(taskId, request);
+
+        // Assert
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+        _taskServiceMock.Verify(x => x.GetTaskByIdAsync(It.IsAny<Guid>()), Times.Never);
     }
 
     [Fact]
@@ -162,6 +273,14 @@ public class TasksControllerTests
     {
         // Arrange
         var taskId = Guid.NewGuid();
+        var existingTask = new TaskResponse
+        {
+            Id = taskId,
+            UserId = _testUserId
+        };
+
+        _taskServiceMock.Setup(x => x.GetTaskByIdAsync(taskId))
+            .ReturnsAsync(existingTask);
 
         _taskServiceMock.Setup(x => x.DeleteTaskAsync(taskId, _testUserId))
             .ReturnsAsync(true);
@@ -180,15 +299,15 @@ public class TasksControllerTests
         // Arrange
         var taskId = Guid.NewGuid();
 
-        _taskServiceMock.Setup(x => x.DeleteTaskAsync(taskId, _testUserId))
-            .ReturnsAsync(false);
+        _taskServiceMock.Setup(x => x.GetTaskByIdAsync(taskId))
+            .ReturnsAsync((TaskResponse?)null);
 
         // Act
         var result = await _controller.DeleteTask(taskId);
 
         // Assert
         result.Should().BeOfType<NotFoundResult>();
-        _taskServiceMock.Verify(x => x.DeleteTaskAsync(taskId, _testUserId), Times.Once);
+        _taskServiceMock.Verify(x => x.DeleteTaskAsync(It.IsAny<Guid>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
@@ -207,7 +326,7 @@ public class TasksControllerTests
             CreatedAt = DateTime.UtcNow
         };
 
-        _taskServiceMock.Setup(x => x.GetTaskByIdAsync(taskId, _testUserId))
+        _taskServiceMock.Setup(x => x.GetTaskByIdAsync(taskId))
             .ReturnsAsync(expectedTask);
 
         // Act
@@ -218,7 +337,7 @@ public class TasksControllerTests
         var task = okResult.Value.Should().BeOfType<TaskResponse>().Subject;
         task.Id.Should().Be(taskId);
         task.Title.Should().Be("Test Task");
-        _taskServiceMock.Verify(x => x.GetTaskByIdAsync(taskId, _testUserId), Times.Once);
+        _taskServiceMock.Verify(x => x.GetTaskByIdAsync(taskId), Times.Once);
     }
 
     [Fact]
@@ -227,7 +346,7 @@ public class TasksControllerTests
         // Arrange
         var taskId = Guid.NewGuid();
 
-        _taskServiceMock.Setup(x => x.GetTaskByIdAsync(taskId, _testUserId))
+        _taskServiceMock.Setup(x => x.GetTaskByIdAsync(taskId))
             .ReturnsAsync((TaskResponse?)null);
 
         // Act
@@ -235,7 +354,7 @@ public class TasksControllerTests
 
         // Assert
         result.Result.Should().BeOfType<NotFoundResult>();
-        _taskServiceMock.Verify(x => x.GetTaskByIdAsync(taskId, _testUserId), Times.Once);
+        _taskServiceMock.Verify(x => x.GetTaskByIdAsync(taskId), Times.Once);
     }
 }
 

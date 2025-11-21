@@ -3,11 +3,11 @@ import { computed, onMounted } from 'vue'
 import { useTasksStore } from '@/stores/tasks'
 import { useAuthStore } from '@/stores/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  ListTodo, 
+import {
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  ListTodo,
   Calendar,
   TrendingUp,
   Users
@@ -54,11 +54,11 @@ const tasksCreatedToday = computed(() => {
 // Tarefas por usuário
 const tasksByUser = computed(() => {
   const userMap = new Map<string, { userName: string; count: number }>()
-  
+
   tasksStore.tasks.forEach(task => {
     const userId = task.userId || 'unknown'
     const userName = task.userName || 'Sem nome'
-    
+
     if (userMap.has(userId)) {
       const user = userMap.get(userId)!
       user.count++
@@ -66,7 +66,7 @@ const tasksByUser = computed(() => {
       userMap.set(userId, { userName, count: 1 })
     }
   })
-  
+
   return Array.from(userMap.values())
     .sort((a, b) => b.count - a.count)
     .slice(0, 5) // Top 5 usuários
@@ -119,7 +119,7 @@ const statusNames: Record<TaskStatus, string> = {
           <ListTodo class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">{{ totalTasks }}</div>
+          <div class="text-2xl font-bold" data-testid="metric-total">{{ totalTasks }}</div>
           <p class="text-xs text-muted-foreground mt-1">
             Todas as tarefas do sistema
           </p>
@@ -134,7 +134,7 @@ const statusNames: Record<TaskStatus, string> = {
           <Clock class="h-4 w-4 text-yellow-600" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">{{ pendingTasks }}</div>
+          <div class="text-2xl font-bold" data-testid="metric-pending">{{ pendingTasks }}</div>
           <p class="text-xs text-muted-foreground mt-1">
             Aguardando início
           </p>
@@ -149,7 +149,7 @@ const statusNames: Record<TaskStatus, string> = {
           <TrendingUp class="h-4 w-4 text-blue-600" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">{{ inProgressTasks }}</div>
+          <div class="text-2xl font-bold" data-testid="metric-in-progress">{{ inProgressTasks }}</div>
           <p class="text-xs text-muted-foreground mt-1">
             Sendo executadas
           </p>
@@ -164,7 +164,7 @@ const statusNames: Record<TaskStatus, string> = {
           <CheckCircle2 class="h-4 w-4 text-green-600" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">{{ completedTasks }}</div>
+          <div class="text-2xl font-bold" data-testid="metric-completed">{{ completedTasks }}</div>
           <p class="text-xs text-muted-foreground mt-1">
             Taxa de conclusão: {{ completionRate }}%
           </p>
@@ -182,7 +182,7 @@ const statusNames: Record<TaskStatus, string> = {
           <AlertCircle class="h-4 w-4 text-destructive" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold text-destructive">{{ overdueTasks.length }}</div>
+          <div class="text-2xl font-bold text-destructive" data-testid="metric-overdue">{{ overdueTasks.length }}</div>
           <p class="text-xs text-muted-foreground mt-1">
             Requerem atenção urgente
           </p>
@@ -197,7 +197,7 @@ const statusNames: Record<TaskStatus, string> = {
           <Calendar class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">{{ tasksCreatedToday }}</div>
+          <div class="text-2xl font-bold" data-testid="metric-created-today">{{ tasksCreatedToday }}</div>
           <p class="text-xs text-muted-foreground mt-1">
             Novas tarefas hoje
           </p>
@@ -212,7 +212,7 @@ const statusNames: Record<TaskStatus, string> = {
           <CheckCircle2 class="h-4 w-4 text-green-600" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">{{ completionRate }}%</div>
+          <div class="text-2xl font-bold" data-testid="metric-completion-rate">{{ completionRate }}%</div>
           <p class="text-xs text-muted-foreground mt-1">
             {{ completedTasks }} de {{ totalTasks }} tarefas
           </p>
@@ -239,10 +239,8 @@ const statusNames: Record<TaskStatus, string> = {
               </div>
               <div class="flex items-center gap-2">
                 <div class="w-32 bg-muted rounded-full h-2">
-                  <div 
-                    class="bg-yellow-600 h-2 rounded-full transition-all"
-                    :style="{ width: totalTasks > 0 ? `${(pendingTasks / totalTasks) * 100}%` : '0%' }"
-                  ></div>
+                  <div class="bg-yellow-600 h-2 rounded-full transition-all"
+                    :style="{ width: totalTasks > 0 ? `${(pendingTasks / totalTasks) * 100}%` : '0%' }"></div>
                 </div>
                 <span class="text-sm font-medium w-8 text-right">{{ pendingTasks }}</span>
               </div>
@@ -255,10 +253,8 @@ const statusNames: Record<TaskStatus, string> = {
               </div>
               <div class="flex items-center gap-2">
                 <div class="w-32 bg-muted rounded-full h-2">
-                  <div 
-                    class="bg-blue-600 h-2 rounded-full transition-all"
-                    :style="{ width: totalTasks > 0 ? `${(inProgressTasks / totalTasks) * 100}%` : '0%' }"
-                  ></div>
+                  <div class="bg-blue-600 h-2 rounded-full transition-all"
+                    :style="{ width: totalTasks > 0 ? `${(inProgressTasks / totalTasks) * 100}%` : '0%' }"></div>
                 </div>
                 <span class="text-sm font-medium w-8 text-right">{{ inProgressTasks }}</span>
               </div>
@@ -271,10 +267,8 @@ const statusNames: Record<TaskStatus, string> = {
               </div>
               <div class="flex items-center gap-2">
                 <div class="w-32 bg-muted rounded-full h-2">
-                  <div 
-                    class="bg-green-600 h-2 rounded-full transition-all"
-                    :style="{ width: totalTasks > 0 ? `${(completedTasks / totalTasks) * 100}%` : '0%' }"
-                  ></div>
+                  <div class="bg-green-600 h-2 rounded-full transition-all"
+                    :style="{ width: totalTasks > 0 ? `${(completedTasks / totalTasks) * 100}%` : '0%' }"></div>
                 </div>
                 <span class="text-sm font-medium w-8 text-right">{{ completedTasks }}</span>
               </div>
@@ -296,11 +290,7 @@ const statusNames: Record<TaskStatus, string> = {
         </CardHeader>
         <CardContent>
           <div class="space-y-3">
-            <div
-              v-for="(user, index) in tasksByUser"
-              :key="index"
-              class="flex items-center justify-between"
-            >
+            <div v-for="(user, index) in tasksByUser" :key="index" class="flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <div class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-medium">
                   {{ user.userName.charAt(0).toUpperCase() }}
@@ -309,10 +299,8 @@ const statusNames: Record<TaskStatus, string> = {
               </div>
               <div class="flex items-center gap-2">
                 <div class="w-24 bg-muted rounded-full h-2">
-                  <div 
-                    class="bg-primary h-2 rounded-full transition-all"
-                    :style="{ width: totalTasks > 0 ? `${(user.count / totalTasks) * 100}%` : '0%' }"
-                  ></div>
+                  <div class="bg-primary h-2 rounded-full transition-all"
+                    :style="{ width: totalTasks > 0 ? `${(user.count / totalTasks) * 100}%` : '0%' }"></div>
                 </div>
                 <span class="text-sm font-medium w-6 text-right">{{ user.count }}</span>
               </div>
@@ -340,11 +328,8 @@ const statusNames: Record<TaskStatus, string> = {
         </CardHeader>
         <CardContent>
           <div class="space-y-3">
-            <div
-              v-for="task in overdueTasks.slice(0, 5)"
-              :key="task.id"
-              class="flex items-start justify-between p-3 rounded-lg border border-destructive/20 bg-destructive/5"
-            >
+            <div v-for="task in overdueTasks.slice(0, 5)" :key="task.id"
+              class="flex items-start justify-between p-3 rounded-lg border border-destructive/20 bg-destructive/5">
               <div class="flex-1">
                 <p class="text-sm font-medium line-clamp-1">{{ task.title || 'Sem título' }}</p>
                 <p class="text-xs text-muted-foreground mt-1">
@@ -381,11 +366,8 @@ const statusNames: Record<TaskStatus, string> = {
         </CardHeader>
         <CardContent>
           <div class="space-y-3">
-            <div
-              v-for="task in recentTasks"
-              :key="task.id"
-              class="flex items-start justify-between p-3 rounded-lg border"
-            >
+            <div v-for="task in recentTasks" :key="task.id"
+              class="flex items-start justify-between p-3 rounded-lg border">
               <div class="flex-1">
                 <p class="text-sm font-medium line-clamp-1">{{ task.title || 'Sem título' }}</p>
                 <p class="text-xs text-muted-foreground mt-1">
@@ -395,14 +377,11 @@ const statusNames: Record<TaskStatus, string> = {
                   {{ task.userName }}
                 </p>
               </div>
-              <span 
-                class="text-xs font-medium ml-2"
-                :class="{
-                  'text-yellow-600': task.status === 0,
-                  'text-blue-600': task.status === 1,
-                  'text-green-600': task.status === 2,
-                }"
-              >
+              <span class="text-xs font-medium ml-2" :class="{
+                'text-yellow-600': task.status === 0,
+                'text-blue-600': task.status === 1,
+                'text-green-600': task.status === 2,
+              }">
                 {{ statusNames[task.status || 0] }}
               </span>
             </div>
