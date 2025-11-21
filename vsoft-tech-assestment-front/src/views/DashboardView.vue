@@ -4,6 +4,7 @@ import { useTasksStore } from '@/stores/tasks'
 import { useAuthStore } from '@/stores/auth'
 import { useIntersection } from '@/composables/useIntersection'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   CheckCircle2,
   Clock,
@@ -115,9 +116,9 @@ const statusNames: Record<TaskStatus, string> = {
           Visão geral das tarefas e métricas do sistema
         </p>
       </template>
-      <div v-else class="space-y-3 animate-pulse">
-        <div class="h-10 w-72 rounded bg-muted" />
-        <div class="h-4 w-60 rounded bg-muted/70" />
+      <div v-else class="space-y-3">
+        <Skeleton class="h-10 w-72" />
+        <Skeleton class="h-4 w-60" />
       </div>
     </div>
 
@@ -187,7 +188,7 @@ const statusNames: Record<TaskStatus, string> = {
         </div>
       </template>
       <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div v-for="index in 4" :key="`primary-skel-${index}`" class="h-32 rounded-lg bg-muted/60 animate-pulse" />
+        <Skeleton v-for="index in 4" :key="`primary-skel-${index}`" class="h-32 rounded-lg" />
       </div>
     </div>
 
@@ -243,7 +244,7 @@ const statusNames: Record<TaskStatus, string> = {
         </div>
       </template>
       <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <div v-for="index in 3" :key="`secondary-skel-${index}`" class="h-36 rounded-lg bg-muted/60 animate-pulse" />
+        <Skeleton v-for="index in 3" :key="`secondary-skel-${index}`" class="h-36 rounded-lg" />
       </div>
     </div>
 
@@ -344,7 +345,7 @@ const statusNames: Record<TaskStatus, string> = {
         </div>
       </template>
       <div v-else class="grid gap-4 md:grid-cols-2">
-        <div v-for="index in 2" :key="`distribution-skel-${index}`" class="h-72 rounded-lg bg-muted/50 animate-pulse" />
+        <Skeleton v-for="index in 2" :key="`distribution-skel-${index}`" class="h-72 rounded-lg" />
       </div>
     </div>
 
@@ -431,7 +432,7 @@ const statusNames: Record<TaskStatus, string> = {
         </div>
       </template>
       <div v-else class="grid gap-4 md:grid-cols-2">
-        <div v-for="index in 2" :key="`details-skel-${index}`" class="h-80 rounded-lg bg-muted/40 animate-pulse" />
+        <Skeleton v-for="index in 2" :key="`details-skel-${index}`" class="h-80 rounded-lg" />
       </div>
     </div>
   </div>
@@ -442,6 +443,7 @@ const statusNames: Record<TaskStatus, string> = {
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
+  line-clamp: 1;
   overflow: hidden;
 }
 </style>

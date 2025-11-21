@@ -4,6 +4,7 @@ import TaskCard from './TaskCard.vue'
 import type { TaskResponse, TaskStatus } from '@/lib/api/types.gen'
 import { useIntersection } from '@/composables/useIntersection'
 import { taskColumnRootKey } from './tokens'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const props = defineProps<{
     task: TaskResponse
@@ -87,8 +88,8 @@ const handleTaskClick = () => emit('task-click', props.task)
                 @delete="emit('task-delete', $event)"
                 @move="(taskId, newStatus) => emit('task-move', taskId, newStatus, status)" />
         </div>
-        <div v-else :style="{ height: `${measuredHeight}px` }"
-            class="rounded-lg border border-dashed border-border/40 bg-transparent opacity-0" aria-hidden="true" />
+        <Skeleton v-else :style="{ height: `${measuredHeight}px` }" class="rounded-lg border border-border/30"
+            aria-hidden="true" />
     </div>
 </template>
 
