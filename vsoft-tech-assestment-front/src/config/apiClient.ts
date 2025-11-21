@@ -8,6 +8,8 @@
 import { client } from '@/lib/api/client.gen'
 import { setupApiInterceptors } from './interceptors'
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
+
 // Configurar fetch customizado que sempre inclui credentials: 'include'
 const fetchWithCredentials: typeof fetch = async (input, init) => {
     return fetch(input, {
@@ -18,6 +20,7 @@ const fetchWithCredentials: typeof fetch = async (input, init) => {
 
 // Aplicar configuração no cliente
 client.setConfig({
+    baseUrl: API_BASE_URL,
     fetch: fetchWithCredentials,
 })
 
